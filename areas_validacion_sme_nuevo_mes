@@ -1,0 +1,114 @@
+SELECT DISTINCT
+a.country_code
+,a.city_name
+,a.ba_id
+,a.ba_name
+,a.bd_area_id
+,a.bd_area_name
+,a.bd_area_owner
+,r.is_launched_area
+--Arreglo cuando el BDM es Owner de un BD Area
+,IF(
+    org.bdl_area_owner = 'tomasjaramillo'
+    ,a.bd_area_owner
+    ,org.bdm_area_owner
+) AS bdm_area_owner
+,IF(
+    org.bdl_area_owner = 'tomasjaramillo'
+    ,org.bdm_area_owner
+    ,org.bdl_area_owner
+) AS bdl_area_owner
+FROM (    
+    SELECT DISTINCT 
+    country_code
+    ,city_name
+    ,district_id AS ba_id
+    ,district_name AS ba_name
+    ,area_id AS bd_area_id
+    ,area_name AS bd_area_name
+    ,area_maintainer AS bd_area_owner
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    --AND area_id = 'bdArea|5764607523118976976'
+) AS a
+
+JOIN (
+    SELECT
+    country_code
+    ,city_name
+    ,area_id
+    ,area_type
+    ,CASE WHEN is_valid = 3 THEN 1 ELSE 0 END AS is_launched_area
+    ,is_valid
+    ,is_del
+    FROM soda_international_dwd.dwd_zone_info_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND is_del = 0
+    AND IF(
+            (
+                CASE WHEN is_valid = 3 THEN 1 ELSE 0 END = 1 OR
+                --BD Areas no lanzadas aún pero deben salir 
+                CONCAT('bdArea|',area_id) IN (
+                    'bdArea|10176692823','bdArea|72428552844','bdArea|186874331345','bdArea|34319107022','bdArea|34621096910','bdArea|99297264580','bdArea|5764608815107211734','bdArea|180276691122','bdArea|5764607523118976976','bdArea|5764608059159413253','bdArea|100350034504'
+                )
+            )
+            -- BD Areas lanzadas pero no utilizables
+            AND CONCAT('bdArea|',area_id) NOT IN (
+                'bdArea|4472439022','bdArea|248367022356','bdArea|195904667749','bdArea|182302539974','bdArea|240515285246','bdArea|5764607671685418186','bdArea|118695919712','bdArea|53659041957','bdArea|203357946046','bdArea|265081323607','bdArea|85246345407','bdArea|5764607738949470597','bdArea|5764607628098210175','bdArea|5764607576566991240','bdArea|5764607524704422284','bdArea|5764607627817191807','bdArea|5764607661195463070','bdArea|5764607549736026351','bdArea|5764607616945553649','bdArea|5764607551875122958','bdArea|5764607570485249797','bdArea|5764607657521252106','bdArea|5764607779336423171','bdArea|5764607662726383371','bdArea|5764607780166895363','bdArea|5764607780456302339','bdArea|5764607562314745716','bdArea|174480162870','bdArea|178334728237','bdArea|83203719237','bdArea|109489422514','bdArea|191211241556','bdArea|5764607774051600136','bdArea|5764607738139969291','bdArea|53755511014','bdArea|256583664249','bdArea|91235811401','bdArea|216318345824','bdArea|86416556508'
+            )
+            ,1
+            ,0
+        ) = 1
+) AS r
+ON a.bd_area_id = CONCAT('bdArea|',r.area_id)
+
+LEFT JOIN (
+    SELECT DISTINCT
+    a.country
+    ,a.bd 
+    ,a.bdm_area_owner
+    ,b.bdl_area_owner
+    FROM (
+        SELECT  
+        country_code AS country
+        ,username AS bd
+        ,CASE WHEN user_status = 1 THEN 'In Draft'
+            WHEN user_status = 2 THEN 'Entring'
+            WHEN user_status = 3 THEN 'On-the-job'
+            WHEN user_status = 4 THEN 'Onboarding Failure'
+            WHEN user_status = 5 THEN 'On-the-job but have applied for separation'
+            WHEN user_status = 6 THEN 'Leave'
+            WHEN user_status = 7 THEN 'On-the-job but transfer in progress'
+            ELSE user_status
+            END AS user_status
+            --,city.city_name service_city_name
+        --,superior AS bdm_area_owner
+        --,coordinator
+        ,IF(coordinator = '',superior,coordinator) AS bdm_area_owner
+        FROM soda_international_dwd.dwd_shop_bd_user_info_d_whole bd
+        WHERE concat_ws('-', year, month, day) = '${end_date}'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND user_status NOT IN (1,4,6)
+        --AND username = 'giovanni.cantero_v'
+    ) AS a
+
+    LEFT JOIN (
+        SELECT  
+        country_code AS country
+        ,username AS bdm_area_owner
+        ,IF(coordinator = '',superior,coordinator) AS bdl_area_owner
+        FROM soda_international_dwd.dwd_shop_bd_user_info_d_whole bd
+        WHERE concat_ws('-', year, month, day) = '${end_date}'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND user_status NOT IN (1,4,6)
+    ) AS b
+    ON a.country = b.country
+    AND a.bdm_area_owner = b.bdm_area_owner
+
+
+) AS org
+ON a.country_code = org.country
+AND a.bd_area_owner = org.bd
+
