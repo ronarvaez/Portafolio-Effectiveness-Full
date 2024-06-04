@@ -1,0 +1,188 @@
+--Portafolio Offline
+SELECT DISTINCT
+a.updated_date
+,a.country
+,a.city
+,a.area_id
+--,a.area_name
+,a.bd_area_id
+,a.bd_area_name
+,r.is_launched_area
+,a.shop_id
+,if(a.shop_id = '5764607583412028012', "GARAGE WINGS SNACK  & BEER",a.shop_name) AS shop_name
+,a.is_didi_sign
+,a.potential
+,a.r_performance
+,d.signed_date
+,d.first_online_date
+,d.signed_submitter
+,i.last_online_date
+,i.rtbo_date
+,a.ka_type
+,a.priority
+,o.average_daily_orders_l60d
+,m.Daily_Avg_Orders_May_2024
+,IF(f.prioridad_correcta IS NULL, "Priority 5", f.prioridad_correcta) AS prioridad_correcta
+,a.bd_area_owner
+,b.correct_bd_area_owner
+,a.bd_assigned
+,e.bdm
+,e.bdl
+,CASE WHEN e.sme_bd IS NOT NULL THEN 1 ELSE 0 END AS is_active_farmer
+FROM ( 
+    SELECT
+    concat_ws('-', year, month, day) AS updated_date
+    ,country_code AS country
+    ,city_name AS city
+    ,district_id AS area_id
+    --,district_name AS area_name
+    ,area_id AS bd_area_id
+    ,area_name AS bd_area_name
+    ,area_maintainer AS bd_area_owner
+    ,shop_id
+    ,shop_name
+    ,potential
+    ,r_performance
+    ,bd_user_name_extract AS bd_assigned
+    ,IF(
+        is_dark_kitchen = 1
+        ,'DK'
+        ,IF(
+            business_type = 3,
+            'Groceries'
+            ,IF(
+                ka_type = 'normal'
+                ,'SME'
+                ,UPPER(ka_type)
+            )
+        ) 
+    ) AS ka_type
+    ,priority
+    ,is_suspend
+    ,is_didi_sign
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND is_didi_sign = 1
+    AND IF(
+        is_dark_kitchen = 1
+        ,'DK'
+        ,IF(
+            business_type = 3,
+            'Groceries'
+            ,IF(
+                ka_type = 'normal'
+                ,'SME'
+                ,UPPER(ka_type)
+            )
+        ) 
+    ) = 'SME'
+    --AND area_maintainer = bd_user_name_extract 
+
+) AS a
+
+JOIN (
+    SELECT
+    country
+    ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
+    ,rep_sales AS correct_bd_area_owner
+    FROM dp_det_data.BD_areas_offline_junio24
+    --where bd_area_id = 'bdArea|203735433384'
+) AS b
+ON a.country = b.country
+AND a.bd_area_id = b.bd_area_id
+
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,signed_submitter
+    ,TO_DATE(first_online_time) AS first_online_date
+    ,TO_DATE(signed_local_time) AS signed_date
+    FROM soda_international_dwm.dwm_bizopp_sign_process_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND TO_DATE(first_online_time) IS NOT NULL
+) AS d
+ON a.shop_id = d.shop_id
+
+LEFT JOIN (
+    SELECT 
+    shop_id
+    ,TO_DATE(first_ready_online_date) AS rtbo_date
+    ,TO_DATE(last_online_date) AS last_online_date
+    FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+) AS i
+ON a.shop_id = i.shop_id
+
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,ROUND(SUM(complete_order_num)/COUNT(DISTINCT concat_ws('-', year, month, day)),2) AS average_daily_orders_l60d
+    FROM soda_international_dwm.dwm_shop_wide_d_whole
+    WHERE country_code IN ('MX','CO','CR','PE')
+    AND concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}',60) AND '${end_date}'
+    GROUP BY shop_id
+) AS o
+ON a.shop_id = o.shop_id
+
+LEFT JOIN(
+    select
+        shop_id,
+        country_code,
+        datediff('${end_date}','${data_begin}'),
+        count(distinct(order_id)),
+        round(count(distinct(order_id))/(datediff('${end_date}','${data_begin}') + 1),2) as Daily_Avg_Orders_May_2024
+    from
+        soda_international_dwd.dwd_order_wide_d_increment
+    where
+        concat_ws('-', year, month, day) between '${data_begin}'
+        and '${end_date}'
+        and status = 600
+        and is_td_complete = 1
+        and channel = 0
+        and country_code in ('MX','CO','CR','PE')
+        --and shop_id = '5764607646175593507'
+    group by
+        shop_id,
+        country_code
+) AS m 
+ON a.shop_id = m.shop_id
+
+LEFT JOIN (
+    SELECT
+    country_code
+    ,city_name
+    ,area_id
+    ,area_type
+    ,CASE WHEN is_valid = 3 THEN 1 ELSE 0 END AS is_launched_area
+    ,is_valid
+    ,is_del
+    FROM soda_international_dwd.dwd_zone_info_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND is_del = 0
+    --AND area_id = '270307426405'
+) AS r
+ON a.bd_area_id = CONCAT('bdArea|',r.area_id)
+
+LEFT JOIN (
+    SELECT
+    country
+    ,rep_sales AS sme_bd
+    ,bdm
+    ,bdl
+    FROM dp_det_data.Bd_org_sme_junio24	
+) AS e
+ON b.correct_bd_area_owner = e.sme_bd
+
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,priority as prioridad_correcta
+    FROM dp_det_data.ps_1a4_junio4
+) AS f
+ON a.shop_id = f.shop_id
+
+WHERE f.prioridad_correcta IN ('Priority 1','Priority 2','Priority 3','Priority 4','Priority 6')
