@@ -181,7 +181,7 @@ LEFT JOIN (
     SELECT
     shop_id
     ,priority as prioridad_correcta
-    FROM dp_det_data.ps_1a4_junio4
+    FROM dp_det_data.prioridades_SME_Junio_v2
 ) AS f
 ON a.shop_id = f.shop_id
 
