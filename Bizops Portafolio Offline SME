@@ -512,7 +512,7 @@ LEFT JOIN (
     SELECT
     shop_id
     ,priority as prioridad_correcta
-    FROM dp_det_data.prioridades_SME_Junio_v2 --Prioridades Offline
+    FROM dp_det_data.prioridades_sme_junio_v3 --Prioridades Offline
 ) AS w
 ON a.shop_id = w.shop_id
 
