@@ -14,6 +14,7 @@ a.updated_at_date
 ,a.contract_id
 ,a.brand_id
 ,a.brand_name
+,COALESCE(ff.shops_per_brand,1) AS shops_per_brand
 ,COALESCE(ff.brand_first_online_date,e.first_online_date) AS brand_first_online_date
 ,a.shop_id
 ,a.shop_name
@@ -62,6 +63,7 @@ a.updated_at_date
 ,dd.last_eff_online_date
 ,dd.days_eff_online_l14d
 ,dd.eff_online_rate_l60d
+,bb.5_orders_date
 FROM (
     SELECT
     concat_ws('-', year, month, day) AS updated_at_date
@@ -506,7 +508,7 @@ ON a.contract_id = j.contract_id
 LEFT JOIN (
     SELECT
     a.brand_id
-    --COUNT(DISTINCT CASE WHEN b.is_invalid_lead = 0 THEN a.shop_id END) AS shops_per_brand
+    ,COUNT(DISTINCT CASE WHEN b.is_invalid_lead = 0 THEN a.shop_id END) AS shops_per_brand
     ,MIN(b.first_online_date) AS brand_first_online_date
     FROM (
         SELECT
@@ -672,3 +674,24 @@ LEFT JOIN (
     AND country_code IN ('MX','CO','CR','PE')
 ) AS ee
 ON a.shop_id = ee.shop_id
+
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,MIN(dt) AS 5_orders_date
+    FROM (
+        SELECT
+        concat_ws('-', year, month, day) AS dt
+        ,shop_id
+        ,complete_order_num
+        ,SUM(complete_order_num) OVER (PARTITION BY shop_id ORDER BY concat_ws('-', year, month, day)) AS cum_orders
+        FROM soda_international_dwm.dwm_shop_wide_d_whole
+        WHERE country_code IN ('MX','CO','CR','PE')
+        --AND shop_id = 5764607579804927725
+        AND concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}',330) AND '${end_date}'
+        ORDER BY concat_ws('-', year, month, day)
+    ) AS a
+    WHERE cum_orders >= 5
+    GROUP BY shop_id
+) AS bb
+ON a.shop_id = bb.shop_id
