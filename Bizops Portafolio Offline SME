@@ -105,16 +105,12 @@ FROM (
     --AND INT(SUBSTR(priority,-1)) IN (1,2,3,4)
 ) AS a
 
-JOIN (              
-    --Solo las áreas que tenemos identificadas
+JOIN(
     SELECT
-    country
-    ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
-    ,rep_sales AS correct_bd_area_owner
-    FROM dp_det_data.BD_areas_offline_junio24   --Tabla Offine
-) AS r
-ON a.country = r.country
-AND a.bd_area_id = r.bd_area_id
+    shop_id
+    ,priority as prioridad_correcta
+    FROM dp_det_data.prioridades_sme_junio_v3 --Prioridades Offline
+) AS w ON a.shop_id = w.shop_id
 
 LEFT JOIN (
     SELECT DISTINCT
@@ -508,12 +504,13 @@ LEFT JOIN (
 ) AS j
 ON a.contract_id = j.contract_id
 
-LEFT JOIN (
+LEFT JOIN (              
+    --Áreas que tenemos identificadas
     SELECT
-    shop_id
-    ,priority as prioridad_correcta
-    FROM dp_det_data.prioridades_sme_junio_v3 --Prioridades Offline
-) AS w
-ON a.shop_id = w.shop_id
-
-WHERE w.prioridad_correcta IN ('Priority 1','Priority 2','Priority 3','Priority 4','Priority 6')
+    country
+    ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
+    ,rep_sales AS correct_bd_area_owner
+    FROM dp_det_data.BD_areas_offline_junio24   --Tabla Offine
+) AS r
+ON a.country = r.country
+AND a.bd_area_id = r.bd_area_id;
