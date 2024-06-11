@@ -1,0 +1,30 @@
+SELECT 
+a.country
+,a.city
+,a.business_area_id
+,a.business_area_name
+,a.bd_area_id
+,a.bd_area_name
+,a.bd_area_owner_online   
+,b.position
+FROM (
+    SELECT DISTINCT
+    country_code AS country
+    ,city_name AS city
+    ,district_id AS business_area_id
+    ,district_name AS business_area_name
+    ,area_id AS bd_area_id
+    ,area_name AS bd_area_name
+    ,area_maintainer AS bd_area_owner_online   
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+) AS a
+JOIN(
+    SELECT DISTINCT
+    country
+    ,bdm AS username
+    ,'BDM' AS position
+    FROM dp_det_data.Bd_org_sme_junio24
+) AS b ON a.country = b.country 
+AND a.bd_area_owner_online = b.username
