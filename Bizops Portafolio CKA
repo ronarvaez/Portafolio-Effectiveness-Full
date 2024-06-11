@@ -64,6 +64,10 @@ a.updated_at_date
 ,dd.days_eff_online_l14d
 ,dd.eff_online_rate_l60d
 ,bb.5_orders_date
+,z.healthy_days
+,z.first_healthy_date
+,zz.5_healthy_days_date
+
 FROM (
     SELECT
     concat_ws('-', year, month, day) AS updated_at_date
@@ -695,3 +699,85 @@ LEFT JOIN (
     GROUP BY shop_id
 ) AS bb
 ON a.shop_id = bb.shop_id
+
+LEFT JOIN (
+    SELECT 
+        a.shop_id,
+        sum(is_daily_healthy) as healthy_days,
+        MIN(a.dt) AS first_healthy_date
+    FROM (
+        SELECT
+            concat_ws('-', year, month, day) AS dt,
+            shop_id,
+            complete_order_num,
+            pay_order_cnt,
+            CASE 
+                WHEN open_duration_in_set/set_duration > 0.6
+                    AND is_headimg = 1
+                    AND is_headimg_default = 0
+                    AND is_logoimg = 1
+                    AND is_logoimg_default = 0
+                    AND available_item_num >= 5
+                    AND available_pic_item_num/available_item_num >= 0.6
+                THEN 1
+                ELSE 0
+            END AS is_daily_healthy
+        FROM soda_international_dwm.dwm_shop_wide_d_whole
+        WHERE country_code IN ('MX','CO','CR','PE')
+            --AND shop_id = 5764607716484710447
+    ) AS a
+    LEFT JOIN (
+        SELECT
+            shop_id,
+            TO_DATE(first_online_time) AS first_online_date
+        FROM soda_international_dwm.dwm_bizopp_sign_process_d_whole
+        WHERE concat_ws('-', year, month, day) = '${end_date}'
+            AND country_code IN ('MX','CO','CR','PE')
+    ) AS b ON a.shop_id = b.shop_id
+    WHERE TO_DATE(a.dt) >= b.first_online_date
+    GROUP BY a.shop_id
+) AS z ON a.shop_id = z.shop_id
+
+
+LEFT JOIN (
+    SELECT
+        shop_id,
+        MIN(dt) AS 5_healthy_days_date
+    FROM (
+        SELECT
+            concat_ws('-', year, month, day) AS dt,
+            shop_id,
+            complete_order_num,
+            pay_order_cnt,
+            CASE 
+                WHEN open_duration_in_set/set_duration > 0.6
+                    AND is_headimg = 1
+                    AND is_headimg_default = 0
+                    AND is_logoimg = 1
+                    AND is_logoimg_default = 0
+                    AND available_item_num >= 5
+                    AND available_pic_item_num/available_item_num >= 0.6
+                THEN 1
+                ELSE 0
+            END AS is_daily_healthy,
+            SUM(
+                CASE 
+                    WHEN open_duration_in_set/set_duration > 0.6
+                        AND is_headimg = 1
+                        AND is_headimg_default = 0
+                        AND is_logoimg = 1
+                        AND is_logoimg_default = 0
+                        AND available_item_num >= 5
+                        AND available_pic_item_num/available_item_num >= 0.6
+                    THEN 1
+                    ELSE 0
+                END
+            ) OVER (PARTITION BY shop_id ORDER BY concat_ws('-', year, month, day)) AS healthy_days
+        FROM soda_international_dwm.dwm_shop_wide_d_whole
+        WHERE concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}', 3600) AND '${end_date}'
+        AND country_code IN ('MX', 'CO', 'CR', 'PE')
+    ) AS a
+    WHERE healthy_days >= 5
+        --AND shop_id = 5764607716484710447
+    GROUP BY shop_id
+) AS zz ON a.shop_id = zz.shop_id
