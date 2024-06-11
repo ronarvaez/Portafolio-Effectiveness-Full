@@ -704,7 +704,10 @@ LEFT JOIN (
     SELECT 
         a.shop_id,
         sum(is_daily_healthy) as healthy_days,
-        MIN(a.dt) AS first_healthy_date
+        CASE
+            WHEN SUM(is_daily_healthy) = 0 THEN NULL
+            ELSE MIN(a.dt)
+        END AS first_healthy_date
     FROM (
         SELECT
             concat_ws('-', year, month, day) AS dt,
