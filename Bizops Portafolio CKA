@@ -4,13 +4,13 @@ a.updated_at_date
 ,a.city_id
 ,a.city
 ,a.business_area_id
---,a.business_area_name
+,a.business_area_name
 ,a.bd_area_id
 ,a.bd_area_name
---,g.is_launched_bd_area
---,j.legal_rep
+,g.is_launched_bd_area
+,j.legal_rep
 ,a.signatory_id
---,i.signatory_name
+,i.signatory_name
 ,a.contract_id
 ,a.brand_id
 ,a.brand_name
@@ -56,7 +56,7 @@ a.updated_at_date
     ,h.bdl
 ) AS bdl
 ,c.average_daily_orders_l60d
---,d.average_daily_gmv_l60d
+,d.average_daily_gmv_l60d
 ,p.sup_start_date
 ,dd.days_eff_online
 ,ee.5d_eff_online_date
