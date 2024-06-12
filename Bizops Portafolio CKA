@@ -777,7 +777,7 @@ LEFT JOIN (
                 END
             ) OVER (PARTITION BY shop_id ORDER BY concat_ws('-', year, month, day)) AS healthy_days
         FROM soda_international_dwm.dwm_shop_wide_d_whole
-        WHERE concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}', 3600) AND '${end_date}'
+        WHERE concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}', 330) AND '${end_date}'
         AND country_code IN ('MX', 'CO', 'CR', 'PE')
     ) AS a
     WHERE healthy_days >= 5
