@@ -32,16 +32,36 @@ a.updated_at_date
 ,a.bd_area_owner
 ,r.correct_bd_area_owner
 ,a.shop_assigned_bd
+--,IF(
+--    h.bdm IN ('sergiocanal','juanpablonostitajer') OR h.bdl = 'tomasjaramillo'
+--    ,a.shop_assigned_bd
+--    ,h.bdm
+--) AS bdm
+--,IF(
+--    h.bdm IN ('sergiocanal','juanpablonostitajer') OR h.bdl = 'tomasjaramillo'
+--    ,h.bdm
+--    ,h.bdl
+--) AS bdl
+
 ,IF(
-    h.bdm IN ('sergiocanal','juanpablonostitajer') OR h.bdl = 'tomasjaramillo'
-    ,a.shop_assigned_bd
-    ,h.bdm
-) AS bdm
+    q.bdm IS NULL   --Tabla Offline
+    ,IF(
+        h.bdm IN ('sergiocanal','juanpablonostitajer') OR h.bdl = 'tomasjaramillo'
+        ,a.shop_assigned_bd
+        ,h.bdm
+    )
+    ,q.bdm
+) AS bdm       
 ,IF(
-    h.bdm IN ('sergiocanal','juanpablonostitajer') OR h.bdl = 'tomasjaramillo'
-    ,h.bdm
-    ,h.bdl
+    q.bdl IS NULL   --Tabla Offline
+    ,IF(
+        h.bdm IN ('sergiocanal','juanpablonostitajer') OR h.bdl = 'tomasjaramillo'
+        ,h.bdm
+        ,h.bdl
+    )
+    ,q.bdl
 ) AS bdl
+
 ,c.average_daily_orders_l60d
 ,t.average_daily_orders_Month
 
@@ -513,4 +533,16 @@ LEFT JOIN (
     FROM dp_det_data.BD_areas_offline_junio24   --Tabla Offine
 ) AS r
 ON a.country = r.country
-AND a.bd_area_id = r.bd_area_id;
+AND a.bd_area_id = r.bd_area_id
+
+LEFT JOIN (
+    SELECT DISTINCT
+    country
+    ,rep_sales AS username
+    ,bdm
+    ,bdl
+    FROM dp_det_data.Bd_org_sme_junio24     --Tabla Offine
+) AS q
+--BD Org Offline se relaciona con BD Area Owner Offline
+ON a.country = q.country 
+AND r.correct_bd_area_owner  = q.username;;
