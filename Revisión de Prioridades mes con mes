@@ -29,14 +29,14 @@ FROM (
         FROM soda_international_dwm.dwm_bizopp_wide_d_whole
         WHERE concat_ws('-', year, month, day) = '${end_date}'
         AND country_code IN ('MX','CO','CR','PE')
-        AND INT(SUBSTR(priority,-1)) IN (1,2,3,4,6)
+        AND INT(SUBSTR(priority,-1)) IN (1,2,3,4)
 
         UNION ALL
 
         --Rs Enviados en la lista para el siguiente mes
         SELECT
         shop_id
-        FROM dp_det_data.prioridades_julio_2
+        FROM dp_det_data.prioridades_julio_4
     ) AS a
 ) AS a
 
@@ -325,7 +325,7 @@ LEFT JOIN (
     shop_id
     ,july_priority
     ,version AS version_
-    FROM dp_det_data.prioridades_julio_2
+    FROM dp_det_data.prioridades_julio_4
 ) AS g
 ON a.shop_id = g.shop_id
 
