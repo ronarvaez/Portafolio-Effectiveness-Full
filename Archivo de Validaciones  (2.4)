@@ -1,0 +1,81 @@
+SELECT 
+b.country
+,b.city
+,b.business_area_id
+--,b.business_area_name
+,b.bd_area_id
+,b.bd_area_name
+,b.bd_area_owner_online
+,a.shop_id
+,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(b.shop_name)),'\\s+', ' '),'[^\\p{L} ]',''))
+,b.priority_online
+,a.priority_offline
+,b.ka_type
+,b.shop_assigned_bd
+,e.first_online_date
+,f.last_online_date
+,f.days_wo_connection
+FROM (
+    SELECT 
+    country
+    ,shop_id
+    ,'P6' AS priority_offline
+    FROM dp_det_data.sme_p6_list_June
+) AS a
+LEFT JOIN (
+    SELECT DISTINCT
+    country_code AS country
+    ,city_name AS city
+    ,district_id AS business_area_id
+    ,district_name AS business_area_name
+    ,area_id AS bd_area_id
+    ,area_name AS bd_area_name
+    ,area_maintainer AS bd_area_owner_online
+    ,shop_id
+    ,shop_name
+    ,bd_user_name_extract AS shop_assigned_bd
+    ,IF(
+        is_dark_kitchen = 1
+        ,'DK'
+        ,IF(
+            business_type = 3,
+            'Groceries'
+            ,IF(
+                ka_type = 'normal'
+                ,'SME'
+                ,UPPER(ka_type)
+            )
+        ) 
+    ) AS ka_type
+    ,priority AS priority_online
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+) AS b
+ON a.shop_id = b.shop_id
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,signed_submitter
+    ,TO_DATE(first_online_time) AS first_online_date
+    ,TO_DATE(signed_local_time) AS signed_date
+    FROM soda_international_dwm.dwm_bizopp_sign_process_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND TO_DATE(first_online_time) IS NOT NULL
+) AS e
+ON a.shop_id = e.shop_id
+
+LEFT JOIN (
+    SELECT 
+    shop_id
+    ,TO_DATE(first_ready_online_date) AS rtbo_date
+    ,TO_DATE(last_online_date) AS last_online_date
+    ,DATEDIFF('${end_date}',TO_DATE(last_online_date)) AS days_wo_connection
+    FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+) AS f
+ON a.shop_id = f.shop_id
+ORDER BY b.country,b.city,b.bd_area_name
+--ORDER BY b.country,b.city,b.business_area_name,b.bd_area_name
