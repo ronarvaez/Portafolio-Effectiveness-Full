@@ -1,0 +1,591 @@
+SELECT DISTINCT
+d.country
+,d.city
+,d.business_area_id
+,d.business_area_name
+,d.bd_area_id
+,d.bd_area_name
+,a.shop_id
+,d.shop_name
+,e.bd_area_owner AS april_bd_area_owner
+,IF(e.priority = '' OR e.priority IS NULL,'Priority 5',e.priority) AS april_priority
+,e.ka_type AS april_ka_type
+,g.days_wo_connection AS april_days_wo_connection
+,b.suspension_status AS april_suspension_status
+,f.bd_area_owner AS may_bd_area_owner
+,IF(f.priority = '' OR f.priority IS NULL,'Priority 5',f.priority) AS may_priority
+,f.ka_type AS may_ka_type
+,h.days_wo_connection AS may_days_wo_connection
+,c.suspension_status AS may_suspension_status
+,d.bd_area_owner AS june_bd_area_owner
+,IF(d.priority = '' OR d.priority IS NULL,'Priority 5',d.priority) AS june_priority
+,i.first_online_date
+FROM (
+    SELECT
+    shop_id
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '2024-04-30'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND INT(SUBSTR(priority,-1)) IN (1,2,3,4)
+
+    UNION ALL
+
+    SELECT
+    shop_id
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '2024-05-31'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND INT(SUBSTR(priority,-1)) IN (1,2,3,4)
+
+    UNION ALL
+
+    SELECT
+    shop_id
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '2024-06-17'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND INT(SUBSTR(priority,-1)) IN (1,2,3,4)
+) AS a
+
+LEFT JOIN (
+    SELECT DISTINCT
+    a.dt
+    ,a.country_code
+    ,a.shop_id
+    ,a.shop_name
+    ,a.is_suspend
+    ,b.last_online_date
+    ,IF(
+        c.suspended_start_date IS NOT NULL
+        ,'Permanent Suspended by CS'
+        ,IF(
+            d.dormant_start_date IS NOT NULL
+            ,'Dormant'
+            ,IF(
+                e.tempoff_start_date IS NOT NULL
+                ,'Temporary Offline'
+                ,IF(
+                    f.service_start_date IS NOT NULL
+                    ,'Service Suspension'
+                    ,'Not Suspended'
+                )
+            )
+        )
+    ) AS suspension_status
+    ,c.suspended_start_date
+    ,d.dormant_start_date
+    ,d.dormant_end_date
+    ,e.tempoff_start_date
+    ,e.tempoff_end_date
+    ,f.service_start_date
+    FROM (
+        SELECT
+        concat_ws('-', year, month, day) AS dt
+        ,country_code
+        ,is_suspend
+        ,shop_id
+        ,shop_name
+        FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+        WHERE concat_ws('-', year, month, day) = '2024-04-30'
+        AND country_code IN ('MX','CO','CR','PE')
+        --AND shop_id IN (5764607669625947123,5764607710042260538,5764607695513190469)
+    ) AS a
+
+    LEFT JOIN (
+        SELECT 
+        concat_ws('-', year, month, day) AS dt
+        ,shop_id
+        ,TO_DATE(last_online_date) AS last_online_date
+        FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+        WHERE concat_ws('-', year, month, day) = '2024-04-30'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND last_online_date IS NOT NULL
+        AND last_online_date <> ''
+    ) AS b
+    ON a.shop_id = b.shop_id
+
+    LEFT JOIN (
+        SELECT  
+        country_code
+        ,entity_id as shop_id
+        ,MAX(TO_DATE(create_ts_local)) AS suspended_start_date
+        FROM soda_international_dwd.dwd_soda_b_operation_operation_d_increment
+        WHERE operation_type = '30000'
+        AND create_ts_local IS NOT NULL
+        AND create_ts_local <> ''
+        --AND entity_id = 5764607669625947123
+        GROUP BY country_code, entity_id
+    ) AS c
+    ON a.shop_id = c.shop_id
+    AND a.is_suspend = 1
+    AND b.last_online_date <= c.suspended_start_date
+
+    LEFT JOIN (
+        SELECT DISTINCT
+        a.shop_id
+        ,IF(
+            a.dormant_start_date IS NULL
+            ,TO_DATE(a.modify_time)
+            ,a.dormant_start_date
+        ) AS dormant_start_date
+        ,IF (
+            a.dormant_end_date IS NULL
+            ,'2024-04-30'
+            ,a.dormant_end_date
+        ) AS dormant_end_date
+        ,a.tag_change
+        ,a.modify_time
+        ,a.rank_
+        FROM (
+            SELECT DISTINCT
+            a.shop_id
+            ,a.dormant_start_date
+            ,a.dormant_end_date
+            ,a.tag_change
+            ,a.modify_time
+            ,ROW_NUMBER() OVER (PARTITION BY a.shop_id ORDER BY a.modify_time DESC,a.dormant_start_date DESC,a.country ASC) AS rank_
+            FROM (
+                SELECT DISTINCT
+                country_code AS country
+                ,shop_id
+                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') AS dormant_start_date
+                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].end_time'), '"', ''), 'yyyy/MM/dd') AS dormant_end_date
+                ,IF(get_json_object(content, '$.operation_type') = 1,'Adding Tag','Erasing Tag') AS tag_change
+                --,bizopp_batch_job_detail_modify_time_bj AS modify_time
+                ,from_utc_timestamp(
+                    to_utc_timestamp(bizopp_batch_job_detail_modify_time_bj, 'Asia/Shanghai'), 
+                    'America/Bogota'
+                ) AS modify_time
+                FROM soda_international_dwd.dwd_operation_bizopp_batch_job_d_increment
+                WHERE LOWER(get_json_object(content, '$.tag_type')) LIKE '%dormant%'
+                --AND shop_id = 5764607526470156359
+                --AND TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') IS NULL
+            ) AS a
+        ) AS a
+
+        WHERE a.rank_ = 1 AND a.tag_change = 'Adding Tag'
+    ) AS d
+    ON a.shop_id = d.shop_id
+    AND b.last_online_date <= d.dormant_start_date
+    AND a.dt BETWEEN d.dormant_start_date AND d.dormant_end_date
+
+    LEFT JOIN (
+        SELECT DISTINCT
+        a.shop_id
+        ,IF(
+            a.tempoff_start_date IS NULL
+            ,TO_DATE(a.modify_time)
+            ,a.tempoff_start_date
+        ) AS tempoff_start_date
+        ,IF (
+            a.tempoff_end_date IS NULL
+            ,'2024-04-30'
+            ,a.tempoff_end_date
+        ) AS tempoff_end_date
+        ,a.tag_change
+        ,a.modify_time
+        ,a.rank_
+        FROM (
+            SELECT DISTINCT
+            a.shop_id
+            ,a.tempoff_start_date
+            ,a.tempoff_end_date
+            ,a.tag_change
+            ,a.modify_time
+            ,ROW_NUMBER() OVER (PARTITION BY a.shop_id ORDER BY a.modify_time DESC,a.tempoff_start_date DESC,a.country ASC) AS rank_
+            FROM (
+                SELECT DISTINCT
+                country_code AS country
+                ,shop_id
+                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') AS tempoff_start_date
+                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].end_time'), '"', ''), 'yyyy/MM/dd') AS tempoff_end_date
+                ,IF(get_json_object(content, '$.operation_type') = 1,'Adding Tag','Erasing Tag') AS tag_change
+                --,bizopp_batch_job_detail_modify_time_bj AS modify_time
+                ,from_utc_timestamp(
+                    to_utc_timestamp(bizopp_batch_job_detail_modify_time_bj, 'Asia/Shanghai'), 
+                    'America/Bogota'
+                ) AS modify_time
+                FROM soda_international_dwd.dwd_operation_bizopp_batch_job_d_increment
+                WHERE LOWER(get_json_object(content, '$.tag_type')) LIKE '%temporary offline%'
+                --AND shop_id = 5764607526470156359
+                --AND TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') IS NULL
+            ) AS a
+        ) AS a
+
+        WHERE a.rank_ = 1 AND a.tag_change = 'Adding Tag'
+    ) AS e
+    ON a.shop_id = e.shop_id
+    AND b.last_online_date <= e.tempoff_start_date
+    AND a.dt BETWEEN e.tempoff_start_date AND e.tempoff_end_date
+
+    LEFT JOIN (
+        SELECT
+        country_code
+        ,entity_id AS shop_id
+        ,TO_DATE(create_ts_local) AS service_start_date
+        FROM soda_international_dwd.dwd_soda_b_operation_operation_d_increment
+        WHERE operation_type = '40011'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND TO_DATE(create_ts_local) = '2024-04-30'
+    ) AS f
+    ON a.shop_id = f.shop_id
+
+    WHERE IF(
+        c.suspended_start_date IS NOT NULL
+        ,'Permanent Suspended by CS'
+        ,IF(
+            d.dormant_start_date IS NOT NULL
+            ,'Dormant'
+            ,IF(
+                e.tempoff_start_date IS NOT NULL
+                ,'Temporary Offline'
+                ,IF(
+                    f.service_start_date IS NOT NULL
+                    ,'Service Suspension'
+                    ,'Not Suspended'
+                )
+            )
+        )
+    ) = 'Permanent Suspended by CS'
+) AS b
+ON a.shop_id = b.shop_id
+
+LEFT JOIN (
+    SELECT DISTINCT
+    a.dt
+    ,a.country_code
+    ,a.shop_id
+    ,a.shop_name
+    ,a.is_suspend
+    ,b.last_online_date
+    ,IF(
+        c.suspended_start_date IS NOT NULL
+        ,'Permanent Suspended by CS'
+        ,IF(
+            d.dormant_start_date IS NOT NULL
+            ,'Dormant'
+            ,IF(
+                e.tempoff_start_date IS NOT NULL
+                ,'Temporary Offline'
+                ,IF(
+                    f.service_start_date IS NOT NULL
+                    ,'Service Suspension'
+                    ,'Not Suspended'
+                )
+            )
+        )
+    ) AS suspension_status
+    ,c.suspended_start_date
+    ,d.dormant_start_date
+    ,d.dormant_end_date
+    ,e.tempoff_start_date
+    ,e.tempoff_end_date
+    ,f.service_start_date
+    FROM (
+        SELECT
+        concat_ws('-', year, month, day) AS dt
+        ,country_code
+        ,is_suspend
+        ,shop_id
+        ,shop_name
+        FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+        WHERE concat_ws('-', year, month, day) = '2024-05-31'
+        AND country_code IN ('MX','CO','CR','PE')
+        --AND shop_id IN (5764607669625947123,5764607710042260538,5764607695513190469)
+    ) AS a
+
+    LEFT JOIN (
+        SELECT 
+        concat_ws('-', year, month, day) AS dt
+        ,shop_id
+        ,TO_DATE(last_online_date) AS last_online_date
+        FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+        WHERE concat_ws('-', year, month, day) = '2024-05-31'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND last_online_date IS NOT NULL
+        AND last_online_date <> ''
+    ) AS b
+    ON a.shop_id = b.shop_id
+
+    LEFT JOIN (
+        SELECT  
+        country_code
+        ,entity_id as shop_id
+        ,MAX(TO_DATE(create_ts_local)) AS suspended_start_date
+        FROM soda_international_dwd.dwd_soda_b_operation_operation_d_increment
+        WHERE operation_type = '30000'
+        AND create_ts_local IS NOT NULL
+        AND create_ts_local <> ''
+        --AND entity_id = 5764607669625947123
+        GROUP BY country_code, entity_id
+    ) AS c
+    ON a.shop_id = c.shop_id
+    AND a.is_suspend = 1
+    AND b.last_online_date <= c.suspended_start_date
+
+    LEFT JOIN (
+        SELECT DISTINCT
+        a.shop_id
+        ,IF(
+            a.dormant_start_date IS NULL
+            ,TO_DATE(a.modify_time)
+            ,a.dormant_start_date
+        ) AS dormant_start_date
+        ,IF (
+            a.dormant_end_date IS NULL
+            ,'2024-05-31'
+            ,a.dormant_end_date
+        ) AS dormant_end_date
+        ,a.tag_change
+        ,a.modify_time
+        ,a.rank_
+        FROM (
+            SELECT DISTINCT
+            a.shop_id
+            ,a.dormant_start_date
+            ,a.dormant_end_date
+            ,a.tag_change
+            ,a.modify_time
+            ,ROW_NUMBER() OVER (PARTITION BY a.shop_id ORDER BY a.modify_time DESC,a.dormant_start_date DESC,a.country ASC) AS rank_
+            FROM (
+                SELECT DISTINCT
+                country_code AS country
+                ,shop_id
+                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') AS dormant_start_date
+                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].end_time'), '"', ''), 'yyyy/MM/dd') AS dormant_end_date
+                ,IF(get_json_object(content, '$.operation_type') = 1,'Adding Tag','Erasing Tag') AS tag_change
+                --,bizopp_batch_job_detail_modify_time_bj AS modify_time
+                ,from_utc_timestamp(
+                    to_utc_timestamp(bizopp_batch_job_detail_modify_time_bj, 'Asia/Shanghai'), 
+                    'America/Bogota'
+                ) AS modify_time
+                FROM soda_international_dwd.dwd_operation_bizopp_batch_job_d_increment
+                WHERE LOWER(get_json_object(content, '$.tag_type')) LIKE '%dormant%'
+                --AND shop_id = 5764607526470156359
+                --AND TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') IS NULL
+            ) AS a
+        ) AS a
+
+        WHERE a.rank_ = 1 AND a.tag_change = 'Adding Tag'
+    ) AS d
+    ON a.shop_id = d.shop_id
+    AND b.last_online_date <= d.dormant_start_date
+    AND a.dt BETWEEN d.dormant_start_date AND d.dormant_end_date
+
+    LEFT JOIN (
+        SELECT DISTINCT
+        a.shop_id
+        ,IF(
+            a.tempoff_start_date IS NULL
+            ,TO_DATE(a.modify_time)
+            ,a.tempoff_start_date
+        ) AS tempoff_start_date
+        ,IF (
+            a.tempoff_end_date IS NULL
+            ,'2024-05-31'
+            ,a.tempoff_end_date
+        ) AS tempoff_end_date
+        ,a.tag_change
+        ,a.modify_time
+        ,a.rank_
+        FROM (
+            SELECT DISTINCT
+            a.shop_id
+            ,a.tempoff_start_date
+            ,a.tempoff_end_date
+            ,a.tag_change
+            ,a.modify_time
+            ,ROW_NUMBER() OVER (PARTITION BY a.shop_id ORDER BY a.modify_time DESC,a.tempoff_start_date DESC,a.country ASC) AS rank_
+            FROM (
+                SELECT DISTINCT
+                country_code AS country
+                ,shop_id
+                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') AS tempoff_start_date
+                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].end_time'), '"', ''), 'yyyy/MM/dd') AS tempoff_end_date
+                ,IF(get_json_object(content, '$.operation_type') = 1,'Adding Tag','Erasing Tag') AS tag_change
+                --,bizopp_batch_job_detail_modify_time_bj AS modify_time
+                ,from_utc_timestamp(
+                    to_utc_timestamp(bizopp_batch_job_detail_modify_time_bj, 'Asia/Shanghai'), 
+                    'America/Bogota'
+                ) AS modify_time
+                FROM soda_international_dwd.dwd_operation_bizopp_batch_job_d_increment
+                WHERE LOWER(get_json_object(content, '$.tag_type')) LIKE '%temporary offline%'
+                --AND shop_id = 5764607526470156359
+                --AND TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') IS NULL
+            ) AS a
+        ) AS a
+
+        WHERE a.rank_ = 1 AND a.tag_change = 'Adding Tag'
+    ) AS e
+    ON a.shop_id = e.shop_id
+    AND b.last_online_date <= e.tempoff_start_date
+    AND a.dt BETWEEN e.tempoff_start_date AND e.tempoff_end_date
+
+    LEFT JOIN (
+        SELECT
+        country_code
+        ,entity_id AS shop_id
+        ,TO_DATE(create_ts_local) AS service_start_date
+        FROM soda_international_dwd.dwd_soda_b_operation_operation_d_increment
+        WHERE operation_type = '40011'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND TO_DATE(create_ts_local) = '2024-05-31'
+    ) AS f
+    ON a.shop_id = f.shop_id
+
+    WHERE IF(
+        c.suspended_start_date IS NOT NULL
+        ,'Permanent Suspended by CS'
+        ,IF(
+            d.dormant_start_date IS NOT NULL
+            ,'Dormant'
+            ,IF(
+                e.tempoff_start_date IS NOT NULL
+                ,'Temporary Offline'
+                ,IF(
+                    f.service_start_date IS NOT NULL
+                    ,'Service Suspension'
+                    ,'Not Suspended'
+                )
+            )
+        )
+    ) = 'Permanent Suspended by CS'
+) AS c
+ON a.shop_id = c.shop_id
+
+LEFT JOIN (
+    SELECT
+    country_code AS country
+    ,city_name AS city
+    ,district_id AS business_area_id
+    ,district_name AS business_area_name
+    ,area_id AS bd_area_id
+    ,area_name AS bd_area_name
+    ,shop_id
+    ,shop_name
+    --,IF(
+    --    is_dark_kitchen = 1
+    --    ,'DK'
+    --    ,IF(
+    --        business_type = 3,
+    --        'Groceries'
+    --        ,IF(
+    --            ka_type = 'normal'
+    --            ,'SME'
+    --            ,UPPER(ka_type)
+    --        )
+    --    ) 
+    --) AS ka_type
+    ,priority
+    ,area_maintainer AS bd_area_owner
+    --,bd_user_name_extract AS shop_assigned_bd
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '2024-06-17'
+    AND country_code IN ('MX','CO','CR','PE')
+    --Filtro de Firmados
+    AND is_didi_sign = 1
+    -- Filtro de KA Type
+    --AND IF(
+    --    is_dark_kitchen = 1
+    --    ,'DK'
+    --    ,IF(
+    --        business_type = 3,
+    --        'Groceries'
+    --        ,IF(
+    --            ka_type = 'normal'
+    --            ,'SME'
+    --            ,UPPER(ka_type)
+    --        )
+    --    ) 
+    --) = 'CKA'
+    --Filtro de Prioridades
+    --AND INT(SUBSTR(priority,-1)) IN (1,2,3,4)
+) AS d
+ON a.shop_id = d.shop_id
+
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,area_maintainer AS bd_area_owner
+    ,priority
+    ,IF(
+        is_dark_kitchen = 1
+        ,'DK'
+        ,IF(
+            business_type = 3,
+            'Groceries'
+            ,IF(
+                ka_type = 'normal'
+                ,'SME'
+                ,UPPER(ka_type)
+            )
+        ) 
+    ) AS ka_type
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '2024-04-30'
+    AND country_code IN ('MX','CO','CR','PE')
+    --Filtro de Firmados
+    AND is_didi_sign = 1
+) AS e
+ON a.shop_id = e.shop_id
+
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,area_maintainer AS bd_area_owner
+    ,priority
+    ,IF(
+        is_dark_kitchen = 1
+        ,'DK'
+        ,IF(
+            business_type = 3,
+            'Groceries'
+            ,IF(
+                ka_type = 'normal'
+                ,'SME'
+                ,UPPER(ka_type)
+            )
+        ) 
+    ) AS ka_type
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '2024-05-31'
+    AND country_code IN ('MX','CO','CR','PE')
+    --Filtro de Firmados
+    AND is_didi_sign = 1
+) AS f
+ON a.shop_id = f.shop_id
+
+LEFT JOIN (
+    SELECT 
+    shop_id
+    ,TO_DATE(last_online_date) AS last_online_date
+    ,DATEDIFF('2024-04-30',TO_DATE(last_online_date)) AS days_wo_connection
+    FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+    WHERE concat_ws('-', year, month, day) = '2024-04-30'
+    AND country_code IN ('MX','CO','CR','PE')
+) AS g
+ON a.shop_id = g.shop_id
+
+LEFT JOIN (
+    SELECT 
+    shop_id
+    ,TO_DATE(last_online_date) AS last_online_date
+    ,DATEDIFF('2024-05-31',TO_DATE(last_online_date)) AS days_wo_connection
+    FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+    WHERE concat_ws('-', year, month, day) = '2024-05-31'
+    AND country_code IN ('MX','CO','CR','PE')
+) AS h
+ON a.shop_id = h.shop_id
+
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,signed_submitter
+    ,TO_DATE(first_online_time) AS first_online_date
+    FROM soda_international_dwm.dwm_bizopp_sign_process_d_whole
+    WHERE concat_ws('-', year, month, day) = '2024-06-17'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND TO_DATE(first_online_time) IS NOT NULL
+) AS i
+ON a.shop_id = i.shop_id
+
