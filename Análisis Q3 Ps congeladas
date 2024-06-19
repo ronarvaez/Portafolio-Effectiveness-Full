@@ -462,7 +462,7 @@ LEFT JOIN (
     ,area_id AS bd_area_id
     ,area_name AS bd_area_name
     ,shop_id
-    ,shop_name
+    ,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(shop_name)),'\\s+', ' '),'[^\\p{L} ]','')) AS shop_name
     --,IF(
     --    is_dark_kitchen = 1
     --    ,'DK'
@@ -588,4 +588,3 @@ LEFT JOIN (
     AND TO_DATE(first_online_time) IS NOT NULL
 ) AS i
 ON a.shop_id = i.shop_id
-
