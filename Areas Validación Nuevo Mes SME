@@ -40,11 +40,11 @@ JOIN (
     AND IF(
             (
                 CASE WHEN is_valid = 3 THEN 1 ELSE 0 END = 1 
-                --OR
-                ----BD Areas no lanzadas aún pero deben salir 
-                --CONCAT('bdArea|',area_id) IN (
-                --    'bdArea|5764608742549946369','bdArea|11783110737','bdArea|5764607687875428766','bdArea|5764607737498239390','bdArea|32205177461','bdArea|5764607645940778177','bdArea|22461809331','bdArea|5764607568652341183','bdArea|5764608840549859824','bdArea|5764607613007103364','bdArea|91361640521','bdArea|216318345824','bdArea|122621788783','bdArea|5764608144396059454'
-                --)
+                OR
+                --BD Areas no lanzadas aún pero deben salir 
+                CONCAT('bdArea|',area_id) IN (
+                    	'bdArea|216318345824'
+                )
             )
             -- BD Areas lanzadas pero no utilizables
             AND CONCAT('bdArea|',area_id) NOT IN (
