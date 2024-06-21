@@ -1,54 +1,20 @@
 SELECT DISTINCT
 a.country
-,b.city
-,b.business_area_id
-,b.business_area_name
+,a.city
+,a.business_area_id
+,a.business_area_name
 ,a.bd_area_id
-,b.bd_area_name
-,b.bd_area_owner_online
+,a.bd_area_name
+,a.bd_area_owner_online
+,b.is_launched_area
 ,c.total_leads
 ,c.signed_shops
 ,c.p1_p4_p6_shops
-,b.shop_id
-,b.shop_name
-,b.priority
-,b.shop_assigned_bd
+,a.shop_id
+,a.shop_name
+,a.priority
+,a.shop_assigned_bd
 FROM (
-    SELECT DISTINCT
-    a.country
-    ,a.bd_area_id
-    FROM (
-        SELECT DISTINCT
-        country_code AS country
-        ,area_id AS bd_area_id
-        FROM soda_international_dwm.dwm_bizopp_wide_d_whole
-        WHERE concat_ws('-', year, month, day) = '${end_date}'
-        AND country_code IN ('MX','CO','CR','PE')
-    ) AS a
-
-    JOIN (
-        SELECT
-        CONCAT('bdArea|',area_id) AS bd_area_id
-        FROM soda_international_dwd.dwd_zone_info_d_whole
-        WHERE concat_ws('-', year, month, day) = '${end_date}'
-        AND country_code IN ('MX','CO','CR','PE')
-        AND is_del = 0
-        AND IF(
-            CONCAT('bdArea|',area_id) IN (
-                'bdArea|4472439022','bdArea|248367022356','bdArea|195904667749','bdArea|182302539974','bdArea|240515285246','bdArea|5764607671685418186','bdArea|118695919712','bdArea|53659041957','bdArea|203357946046','bdArea|265081323607','bdArea|85246345407','bdArea|5764607738949470597','bdArea|5764607628098210175','bdArea|5764607576566991240','bdArea|5764607524704422284','bdArea|5764607627817191807','bdArea|5764607661195463070','bdArea|5764607549736026351','bdArea|5764607616945553649','bdArea|5764607551875122958','bdArea|5764607570485249797','bdArea|5764607657521252106','bdArea|5764607779336423171','bdArea|5764607662726383371','bdArea|5764607780166895363','bdArea|5764607780456302339','bdArea|5764607562314745716','bdArea|174480162870','bdArea|178334728237','bdArea|83203719237','bdArea|109489422514','bdArea|191211241556','bdArea|5764607774051600136','bdArea|5764607738139969291','bdArea|53755511014','bdArea|256583664249','bdArea|91235811401','bdArea|216318345824','bdArea|86416556508'
-            )
-            ,0
-            ,IF(
-                is_valid = 3
-                ,1
-                ,0
-            )
-        ) = 0
-    ) AS b
-    ON a.bd_area_id = b.bd_area_id
-) AS a
-
-JOIN (
     SELECT DISTINCT
     country_code AS country
     ,city_name AS city
@@ -78,12 +44,27 @@ JOIN (
         ) 
     ) = 'SME'
     AND INT(SUBSTR(priority,-1)) IN (1,2,4,6)
-) AS b
-ON a.country = b.country
-AND a.bd_area_id = b.bd_area_id
+    
+) AS a
 
 LEFT JOIN (
-    SELECT DISTINCT
+    SELECT
+    country_code
+    ,city_name
+    ,area_id
+    ,area_type
+    ,CASE WHEN is_valid = 3 THEN 1 ELSE 0 END AS is_launched_area
+    ,is_valid
+    ,is_del
+    FROM soda_international_dwd.dwd_zone_info_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND is_del = 0
+) AS b
+ON a.bd_area_id = CONCAT('bdArea|',b.area_id)
+
+LEFT JOIN (
+    SELECT
     country_code AS country
     ,city_name AS city
     ,district_id AS business_area_id
@@ -115,4 +96,6 @@ LEFT JOIN (
 ) AS c
 ON a.bd_area_id = c.bd_area_id
 
-ORDER BY a.country,b.city,b.business_area_name,b.bd_area_name
+WHERE b.is_launched_area = 0 OR b.is_launched_area IS NULL
+
+ORDER BY a.country,a.city,a.business_area_name,a.bd_area_name
