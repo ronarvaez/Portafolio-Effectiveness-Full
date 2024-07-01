@@ -15,7 +15,10 @@ a.updated_at_date
 ,a.brand_id
 ,a.brand_name
 ,a.shop_id
-,if(a.shop_id = '5764607583412028012', "GARAGE WINGS SNACK  & BEER",a.shop_name) AS shop_name
+,CASE WHEN a.shop_id = '5764607583412028012' THEN "GARAGE WINGS SNACK  & BEER"
+        WHEN a.shop_id = '5764607720481883889' THEN "QUESADILLAS LAS CHULAS"
+        ELSE a.shop_name
+    END AS shop_name
 ,e.signed_date
 ,f.rtbo_date
 ,e.first_online_date
@@ -129,12 +132,12 @@ JOIN(
     SELECT
     shop_id
     ,priority as prioridad_correcta
-    FROM dp_det_data.prioridades_sme_junio_v3 --Prioridades Offline
-    UNION
-    SELECT 
-    shop_id
-    ,'Priority 6' AS prioridad_correcta
-    FROM dp_det_data.sme_p6_list_June
+    FROM dp_det_data.prioridades_sme_julio --Prioridades Offline
+    --UNION
+    --SELECT 
+    --shop_id
+    --,'Priority 6' AS prioridad_correcta
+    --FROM dp_det_data.sme_p6_list_June
 ) AS w ON a.shop_id = w.shop_id
 
 LEFT JOIN (
@@ -535,7 +538,7 @@ LEFT JOIN (
     country
     ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
     ,rep_sales AS correct_bd_area_owner
-    FROM dp_det_data.BD_areas_offline_junio24   --Tabla Offine
+    FROM dp_det_data.bd_area_owner_sme_julio_2024   --Tabla Offine
 ) AS r
 ON a.country = r.country
 AND a.bd_area_id = r.bd_area_id
@@ -546,7 +549,7 @@ LEFT JOIN (
     ,rep_sales AS username
     ,bdm
     ,bdl
-    FROM dp_det_data.bdorg062024   --Tabla Offine
+    FROM dp_det_data.bd_org_sme_202407   --Tabla Offine
 ) AS q
 --BD Org Offline se relaciona con BD Area Owner Offline
 ON a.country = q.country 
