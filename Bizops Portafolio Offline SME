@@ -130,6 +130,11 @@ JOIN(
     shop_id
     ,priority as prioridad_correcta
     FROM dp_det_data.prioridades_sme_junio_v3 --Prioridades Offline
+    UNION
+    SELECT 
+    shop_id
+    ,'Priority 6' AS prioridad_correcta
+    FROM dp_det_data.sme_p6_list_June
 ) AS w ON a.shop_id = w.shop_id
 
 LEFT JOIN (
@@ -541,7 +546,7 @@ LEFT JOIN (
     ,rep_sales AS username
     ,bdm
     ,bdl
-    FROM dp_det_data.bdorg062024      --Tabla Offine
+    FROM dp_det_data.bdorg062024   --Tabla Offine
 ) AS q
 --BD Org Offline se relaciona con BD Area Owner Offline
 ON a.country = q.country 
