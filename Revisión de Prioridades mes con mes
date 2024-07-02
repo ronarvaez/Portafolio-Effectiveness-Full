@@ -36,7 +36,7 @@ FROM (
         --Rs Enviados en la lista para el siguiente mes
         SELECT
         shop_id
-        FROM dp_det_data.prioridades_julio_6
+        FROM dp_det_data.prioridades_julio_9
     ) AS a
 ) AS a
 
@@ -325,7 +325,7 @@ LEFT JOIN (
     shop_id
     ,july_priority
     ,version AS version_
-    FROM dp_det_data.prioridades_julio_6
+    FROM dp_det_data.prioridades_julio_9
 ) AS g
 ON a.shop_id = g.shop_id
 
