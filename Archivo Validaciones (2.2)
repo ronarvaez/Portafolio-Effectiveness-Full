@@ -23,7 +23,7 @@ FROM (
     ,area_name AS bd_area_name
     ,area_maintainer AS bd_area_owner_online
     ,shop_id
-    ,shop_name
+    ,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(shop_name)),'\\s+', ' '),'[^\\p{L} ]','')) AS shop_name
     ,bd_user_name_extract AS shop_assigned_bd
     ,IF(
         is_dark_kitchen = 1
