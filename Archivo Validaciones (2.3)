@@ -1,21 +1,42 @@
 SELECT DISTINCT
-b.country
-,b.city
-,b.business_area_id
-,b.business_area_name
-,b.bd_area_id
-,b.bd_area_name
-,b.bd_area_owner_online
-,b.shop_id
-,b.shop_name
+a.country
+,a.city
+,a.business_area_id
+,a.business_area_name
+,a.bd_area_id
+,a.bd_area_name
+,a.bd_area_owner_online
+,a.shop_id
+,a.shop_name
 ,e.signed_submitter
-,b.shop_assigned_bd
-,b.priority_online
-,b.ka_type
-,d.suspension_status
+,a.shop_assigned_bd
+,a.priority_online
+,a.ka_type
+,b.suspended_start_date
 ,e.first_online_date
+,IF(
+    a.ka_type <> 'SME'
+    ,1
+    ,IF(
+        (INT(SUBSTR(a.priority_online,-1)) IN (5,6)) OR (a.priority_online = '')
+        ,1
+        ,IF(
+            e.first_online_date > '${fo_corte_date}'
+            ,IF(
+                a.shop_assigned_bd = e.signed_submitter
+                ,0
+                ,1
+            )
+            ,IF(
+                b.suspended_start_date IS NOT NULL
+                ,1
+                ,0
+            )
+        )
+    )
+) AS condition_1
 FROM (
-    SELECT DISTINCT
+    SELECT
     country_code AS country
     ,city_name AS city
     ,district_id AS business_area_id
@@ -40,10 +61,28 @@ FROM (
         ) 
     ) AS ka_type
     ,priority AS priority_online
-    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole 
     WHERE concat_ws('-', year, month, day) = '${end_date}'
     AND country_code IN ('MX','CO','CR','PE')
-) AS b
+    --AND shop_id IN (
+    --5764607590315854355
+    --,5764607625233434551
+    --,5764607640836244584
+    --,5764607710449109358
+    --,5764607743768658178
+    --,5764607755613374717
+    --,5764607847556710521
+    --,5764607628333024897
+    --,5764607554316140596
+    --,5764607651070345299
+    --,5764607789159418542
+    --,5764607548850964263
+    --,5764607613963337812
+    --,5764607610163300855
+    --,5764607598746404583
+    --,5764607532417680989
+    --)
+) AS a
 
 LEFT JOIN (
     SELECT DISTINCT
@@ -53,29 +92,7 @@ LEFT JOIN (
     ,a.shop_name
     ,a.is_suspend
     ,b.last_online_date
-    ,IF(
-        c.suspended_start_date IS NOT NULL
-        ,'Permanent Suspended by CS'
-        ,IF(
-            d.dormant_start_date IS NOT NULL
-            ,'Dormant'
-            ,IF(
-                e.tempoff_start_date IS NOT NULL
-                ,'Temporary Offline'
-                ,IF(
-                    f.service_start_date IS NOT NULL
-                    ,'Service Suspension'
-                    ,'Not Suspended'
-                )
-            )
-        )
-    ) AS suspension_status
     ,c.suspended_start_date
-    ,d.dormant_start_date
-    ,d.dormant_end_date
-    ,e.tempoff_start_date
-    ,e.tempoff_end_date
-    ,f.service_start_date
     FROM (
         SELECT
         concat_ws('-', year, month, day) AS dt
@@ -102,7 +119,7 @@ LEFT JOIN (
     ) AS b
     ON a.shop_id = b.shop_id
 
-    LEFT JOIN (
+    JOIN (
         SELECT  
         country_code
         ,entity_id as shop_id
@@ -117,149 +134,21 @@ LEFT JOIN (
     ON a.shop_id = c.shop_id
     AND a.is_suspend = 1
     AND b.last_online_date <= c.suspended_start_date
+) AS b
+ON a.shop_id = b.shop_id
 
-    LEFT JOIN (
-        SELECT DISTINCT
-        a.shop_id
-        ,IF(
-            a.dormant_start_date IS NULL
-            ,TO_DATE(a.modify_time)
-            ,a.dormant_start_date
-        ) AS dormant_start_date
-        ,IF (
-            a.dormant_end_date IS NULL
-            ,'${suspension_date}'
-            ,a.dormant_end_date
-        ) AS dormant_end_date
-        ,a.tag_change
-        ,a.modify_time
-        ,a.rank_
-        FROM (
-            SELECT DISTINCT
-            a.shop_id
-            ,a.dormant_start_date
-            ,a.dormant_end_date
-            ,a.tag_change
-            ,a.modify_time
-            ,ROW_NUMBER() OVER (PARTITION BY a.shop_id ORDER BY a.modify_time DESC,a.dormant_start_date DESC,a.country ASC) AS rank_
-            FROM (
-                SELECT DISTINCT
-                country_code AS country
-                ,shop_id
-                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') AS dormant_start_date
-                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].end_time'), '"', ''), 'yyyy/MM/dd') AS dormant_end_date
-                ,IF(get_json_object(content, '$.operation_type') = 1,'Adding Tag','Erasing Tag') AS tag_change
-                --,bizopp_batch_job_detail_modify_time_bj AS modify_time
-                ,from_utc_timestamp(
-                    to_utc_timestamp(bizopp_batch_job_detail_modify_time_bj, 'Asia/Shanghai'), 
-                    'America/Bogota'
-                ) AS modify_time
-                FROM soda_international_dwd.dwd_operation_bizopp_batch_job_d_increment
-                WHERE LOWER(get_json_object(content, '$.tag_type')) LIKE '%dormant%'
-                --AND shop_id = 5764607526470156359
-                --AND TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') IS NULL
-            ) AS a
-        ) AS a
-
-        WHERE a.rank_ = 1 AND a.tag_change = 'Adding Tag'
-    ) AS d
-    ON a.shop_id = d.shop_id
-    AND b.last_online_date <= d.dormant_start_date
-    AND a.dt BETWEEN d.dormant_start_date AND d.dormant_end_date
-
-    LEFT JOIN (
-        SELECT DISTINCT
-        a.shop_id
-        ,IF(
-            a.tempoff_start_date IS NULL
-            ,TO_DATE(a.modify_time)
-            ,a.tempoff_start_date
-        ) AS tempoff_start_date
-        ,IF (
-            a.tempoff_end_date IS NULL
-            ,'${suspension_date}'
-            ,a.tempoff_end_date
-        ) AS tempoff_end_date
-        ,a.tag_change
-        ,a.modify_time
-        ,a.rank_
-        FROM (
-            SELECT DISTINCT
-            a.shop_id
-            ,a.tempoff_start_date
-            ,a.tempoff_end_date
-            ,a.tag_change
-            ,a.modify_time
-            ,ROW_NUMBER() OVER (PARTITION BY a.shop_id ORDER BY a.modify_time DESC,a.tempoff_start_date DESC,a.country ASC) AS rank_
-            FROM (
-                SELECT DISTINCT
-                country_code AS country
-                ,shop_id
-                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') AS tempoff_start_date
-                ,TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].end_time'), '"', ''), 'yyyy/MM/dd') AS tempoff_end_date
-                ,IF(get_json_object(content, '$.operation_type') = 1,'Adding Tag','Erasing Tag') AS tag_change
-                --,bizopp_batch_job_detail_modify_time_bj AS modify_time
-                ,from_utc_timestamp(
-                    to_utc_timestamp(bizopp_batch_job_detail_modify_time_bj, 'Asia/Shanghai'), 
-                    'America/Bogota'
-                ) AS modify_time
-                FROM soda_international_dwd.dwd_operation_bizopp_batch_job_d_increment
-                WHERE LOWER(get_json_object(content, '$.tag_type')) LIKE '%temporary offline%'
-                --AND shop_id = 5764607526470156359
-                --AND TO_DATE(regexp_replace(get_json_object(get_json_object(content, '$.effect_time'), '$[*].start_time'), '"', ''), 'yyyy/MM/dd') IS NULL
-            ) AS a
-        ) AS a
-
-        WHERE a.rank_ = 1 AND a.tag_change = 'Adding Tag'
-    ) AS e
-    ON a.shop_id = e.shop_id
-    AND b.last_online_date <= e.tempoff_start_date
-    AND a.dt BETWEEN e.tempoff_start_date AND e.tempoff_end_date
-
-    LEFT JOIN (
-        SELECT
-        country_code
-        ,entity_id AS shop_id
-        ,TO_DATE(create_ts_local) AS service_start_date
-        FROM soda_international_dwd.dwd_soda_b_operation_operation_d_increment
-        WHERE operation_type = '40011'
-        AND country_code IN ('MX','CO','CR','PE')
-        AND TO_DATE(create_ts_local) = '${suspension_date}'
-    ) AS f
-    ON a.shop_id = f.shop_id
-
-    WHERE IF(
-        c.suspended_start_date IS NOT NULL
-        ,'Permanent Suspended by CS'
-        ,IF(
-            d.dormant_start_date IS NOT NULL
-            ,'Dormant'
-            ,IF(
-                e.tempoff_start_date IS NOT NULL
-                ,'Temporary Offline'
-                ,IF(
-                    f.service_start_date IS NOT NULL
-                    ,'Service Suspension'
-                    ,'Not Suspended'
-                )
-            )
-        )
-    ) <> 'Not Suspended'
-) AS d
-ON b.shop_id = d.shop_id
 
 LEFT JOIN (
     SELECT
     shop_id
     ,signed_submitter
     ,TO_DATE(first_online_time) AS first_online_date
-    ,TO_DATE(signed_local_time) AS signed_date
     FROM soda_international_dwm.dwm_bizopp_sign_process_d_whole
     WHERE concat_ws('-', year, month, day) = '${end_date}'
     AND country_code IN ('MX','CO','CR','PE')
     AND TO_DATE(first_online_time) IS NOT NULL
 ) AS e
-ON b.shop_id = e.shop_id
+ON a.shop_id = e.shop_id
 
 JOIN (
     SELECT DISTINCT
@@ -274,30 +163,26 @@ JOIN (
     ,'BDM' AS position
     FROM dp_det_data.bd_org_sme_202407
 ) AS c
-ON b.shop_assigned_bd = c.username
+ON a.shop_assigned_bd = c.username
 
-WHERE e.first_online_date IS NOT NULL
-AND IF(
-    b.ka_type <> 'SME'
+WHERE IF(
+    a.ka_type <> 'SME'
     ,1
     ,IF(
-        b.priority_online = 'Priority 5'
+        (INT(SUBSTR(a.priority_online,-1)) IN (5,6)) OR (a.priority_online = '')
         ,1
         ,IF(
-            d.suspension_status = 'Permanent Suspended by CS'
-            ,1
+            e.first_online_date > '${fo_corte_date}'
             ,IF(
-                e.first_online_date > '${fo_corte_date}'
-                ,IF(
-                    b.shop_assigned_bd = e.signed_submitter
-                    ,0
-                    ,1
-                    )
+                a.shop_assigned_bd = e.signed_submitter
+                ,0
+                ,1
+            )
+            ,IF(
+                b.suspended_start_date IS NOT NULL
+                ,1
                 ,0
             )
-            
         )
     )
-) = 1
-
-ORDER BY b.country,b.city,b.business_area_name,b.bd_area_name
+) = 1 
