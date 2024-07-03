@@ -538,7 +538,7 @@ LEFT JOIN (
     country
     ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
     ,rep_sales AS correct_bd_area_owner
-    FROM dp_det_data.bd_area_owner_sme_julio_2024   --Tabla Offine
+    FROM dp_det_data.bd_area_owner_sme_julio_v2	  --Tabla Offine
 ) AS r
 ON a.country = r.country
 AND a.bd_area_id = r.bd_area_id
@@ -549,7 +549,7 @@ LEFT JOIN (
     ,rep_sales AS username
     ,bdm
     ,bdl
-    FROM dp_det_data.bd_org_sme_202407   --Tabla Offine
+    FROM dp_det_data.bd_org_sme_julio_v2   --Tabla Offine
 ) AS q
 --BD Org Offline se relaciona con BD Area Owner Offline
 ON a.country = q.country 
