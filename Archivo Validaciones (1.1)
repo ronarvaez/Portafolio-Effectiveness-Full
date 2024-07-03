@@ -48,7 +48,7 @@ FROM (
     SELECT
     country
     ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
-    FROM dp_det_data.bd_area_owner_sme_julio_2024
+    FROM dp_det_data.bd_area_owner_sme_julio_v2
 
 ) AS a
 
@@ -73,7 +73,7 @@ LEFT JOIN (
     country
     ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
     ,rep_sales AS bd_area_owner_offline
-    FROM dp_det_data.bd_area_owner_sme_julio_2024
+    FROM dp_det_data.bd_area_owner_sme_julio_v2
 ) AS c
 ON a.country = c.country
 AND a.bd_area_id = c.bd_area_id
