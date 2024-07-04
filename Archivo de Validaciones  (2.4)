@@ -2,7 +2,7 @@ SELECT
 b.country
 ,b.city
 ,b.business_area_id
---,b.business_area_name
+,b.business_area_name
 ,b.bd_area_id
 ,b.bd_area_name
 ,b.bd_area_owner_online
