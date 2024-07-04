@@ -18,7 +18,7 @@ a.country
     a.ka_type <> 'SME'
     ,1
     ,IF(
-        (INT(SUBSTR(a.priority_online,-1)) IN (5,6)) OR (a.priority_online = '')
+        INT(SUBSTR(a.priority_online,-1)) IN (5,6)
         ,1
         ,IF(
             e.first_online_date > '${fo_corte_date}'
@@ -169,7 +169,7 @@ WHERE IF(
     a.ka_type <> 'SME'
     ,1
     ,IF(
-        (INT(SUBSTR(a.priority_online,-1)) IN (5,6)) OR (a.priority_online = '')
+        INT(SUBSTR(a.priority_online,-1)) IN (5,6)
         ,1
         ,IF(
             e.first_online_date > '${fo_corte_date}'
@@ -185,4 +185,4 @@ WHERE IF(
             )
         )
     )
-) = 1 
+) = 1
