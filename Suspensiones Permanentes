@@ -1,0 +1,49 @@
+SELECT DISTINCT
+a.dt
+,a.country_code
+,a.shop_id
+,a.shop_name
+,a.is_suspend
+,b.last_online_date
+,c.suspended_start_date
+FROM (
+  SELECT
+  concat_ws('-', year, month, day) AS dt
+  ,country_code
+  ,is_suspend
+  ,shop_id
+  ,shop_name
+  FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+  WHERE concat_ws('-', year, month, day) = '${suspended_date}'
+  AND country_code IN ('MX','CO','CR','PE')
+  --AND shop_id IN (5764607669625947123,5764607710042260538,5764607695513190469)
+) AS a
+
+LEFT JOIN (
+  SELECT 
+  concat_ws('-', year, month, day) AS dt
+  ,shop_id
+  ,TO_DATE(last_online_date) AS last_online_date
+  FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+  WHERE concat_ws('-', year, month, day) = '${suspended_date}'
+  AND country_code IN ('MX','CO','CR','PE')
+  AND last_online_date IS NOT NULL
+  AND last_online_date <> ''
+) AS b
+ON a.shop_id = b.shop_id
+
+JOIN (
+  SELECT  
+  country_code
+  ,entity_id as shop_id
+  ,MAX(TO_DATE(create_ts_local)) AS suspended_start_date
+  FROM soda_international_dwd.dwd_soda_b_operation_operation_d_increment
+  WHERE operation_type = '30000'
+  AND create_ts_local IS NOT NULL
+  AND create_ts_local <> ''
+  --AND entity_id = 5764607669625947123
+  GROUP BY country_code, entity_id
+) AS c
+ON a.shop_id = c.shop_id
+AND a.is_suspend = 1
+AND b.last_online_date <= c.suspended_start_date
