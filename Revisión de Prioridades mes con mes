@@ -16,7 +16,7 @@ b.updated_date
 ,e.first_online_date
 ,f.last_online_date
 ,h.average_daily_orders_l60d
-,IF(b.august_priority = '', 'Priority 5',b.august_priority) AS august_priority
+,IF(b.july_priority = '', 'Priority 5',b.july_priority) AS july_priority
 ,COALESCE(g.july_priority,'Priority 5') AS august_priority
 ,COALESCE(g.version_,'Not in June List') AS version_
 FROM (
@@ -66,7 +66,7 @@ LEFT JOIN (
             )
         ) 
     ) AS ka_type
-    ,priority AS august_priority
+    ,priority AS july_priority
     ,is_suspend
     FROM soda_international_dwm.dwm_bizopp_wide_d_whole
     WHERE concat_ws('-', year, month, day) = '${end_date}'
