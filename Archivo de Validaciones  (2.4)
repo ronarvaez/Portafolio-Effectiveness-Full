@@ -17,7 +17,7 @@ b.country
 ,f.days_wo_connection
 FROM (
     SELECT 
-    country
+    --country
     ,shop_id
     ,'Priority 6' AS priority_offline
     FROM dp_det_data.p6_list_sme_july
