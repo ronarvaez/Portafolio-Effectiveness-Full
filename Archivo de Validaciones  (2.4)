@@ -19,8 +19,8 @@ FROM (
     SELECT 
     country
     ,shop_id
-    ,'P6' AS priority_offline
-    FROM dp_det_data.sme_p6_list_June
+    ,'Priority 6' AS priority_offline
+    FROM dp_det_data.p6_list_sme_july
 ) AS a
 LEFT JOIN (
     SELECT DISTINCT
