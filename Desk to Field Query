@@ -1,0 +1,258 @@
+SELECT DISTINCT
+a.updated_at_date
+,a.country
+,a.city
+,a.business_area_id
+,a.business_area_name
+,a.bd_area_id
+,a.business_area_name
+,a.bd_area_id
+,a.bd_area_name
+,a.shop_id
+,a.shop_name
+,a.ka_type
+,a.priority
+,a.bd_area_owner
+,IF(
+    h.bdm IN ('sergiocanal','juanpablonostitajer') OR h.bdl = 'tomasjaramillo'
+    ,a.bd_area_owner
+    ,h.bdm
+) AS bdm
+,IF(
+    h.bdm IN ('sergiocanal','juanpablonostitajer') OR h.bdl = 'tomasjaramillo'
+    ,h.bdm
+    ,h.bdl
+) AS bdl
+,IF(b.suspended_start_date IS NOT NULL,'Suspended','Not Suspended') AS suspension_status
+,c.average_daily_orders_l60d
+,i.days_wo_connection
+FROM (
+    SELECT
+    concat_ws('-', year, month, day) AS updated_at_date
+    ,country_code AS country
+    ,city_id
+    ,city_name AS city
+    ,district_id AS business_area_id
+    ,district_name AS business_area_name
+    ,area_id AS bd_area_id
+    ,area_name AS bd_area_name
+    ,contractor_id AS signatory_id
+    ,contract_id
+    ,brand_id
+    ,brand_name
+    ,shop_id
+    ,shop_name
+    ,IF(
+        is_dark_kitchen = 1
+        ,'DK'
+        ,IF(
+            business_type = 3,
+            'Groceries'
+            ,IF(
+                ka_type = 'normal'
+                ,'SME'
+                ,UPPER(ka_type)
+            )
+        ) 
+    ) AS ka_type
+    ,is_didi_sign
+    ,priority
+    ,potential
+    ,r_performance
+    ,is_suspend
+    ,area_maintainer AS bd_area_owner
+    ,bd_user_name_extract AS shop_assigned_bd
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    --Filtro de Firmados
+    AND is_didi_sign = 1
+    -- Filtro de KA Type
+    AND IF(
+        is_dark_kitchen = 1
+        ,'DK'
+        ,IF(
+            business_type = 3,
+            'Groceries'
+            ,IF(
+                ka_type = 'normal'
+                ,'SME'
+                ,UPPER(ka_type)
+            )
+        ) 
+    ) = 'SME'
+    --Filtro de Prioridades
+    AND INT(SUBSTR(priority,-1)) IN (4)
+) AS a
+
+LEFT JOIN (
+    SELECT DISTINCT
+    a.dt
+    ,a.country_code
+    ,a.shop_id
+    ,a.shop_name
+    ,a.is_suspend
+    ,b.last_online_date
+    ,c.suspended_start_date
+    FROM (
+        SELECT
+        concat_ws('-', year, month, day) AS dt
+        ,country_code
+        ,is_suspend
+        ,shop_id
+        ,shop_name
+        FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+        WHERE concat_ws('-', year, month, day) = '${end_date}'
+        AND country_code IN ('MX','CO','CR','PE')
+        --AND shop_id IN (5764607669625947123,5764607710042260538,5764607695513190469)
+    ) AS a
+
+    LEFT JOIN (
+        SELECT 
+        concat_ws('-', year, month, day) AS dt
+        ,shop_id
+        ,TO_DATE(last_online_date) AS last_online_date
+        FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+        WHERE concat_ws('-', year, month, day) = '${end_date}'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND last_online_date IS NOT NULL
+        AND last_online_date <> ''
+    ) AS b
+    ON a.shop_id = b.shop_id
+
+    JOIN (
+        SELECT  
+        country_code
+        ,entity_id as shop_id
+        ,MAX(TO_DATE(create_ts_local)) AS suspended_start_date
+        FROM soda_international_dwd.dwd_soda_b_operation_operation_d_increment
+        WHERE operation_type = '30000'
+        AND create_ts_local IS NOT NULL
+        AND create_ts_local <> ''
+        --AND entity_id = 5764607669625947123
+        GROUP BY country_code, entity_id
+    ) AS c
+    ON a.shop_id = c.shop_id
+    AND a.is_suspend = 1
+    AND b.last_online_date <= c.suspended_start_date
+) AS b
+ON a.shop_id = b.shop_id
+
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,ROUND(SUM(complete_order_num)/COUNT(DISTINCT concat_ws('-', year, month, day)),2) AS average_daily_orders_l60d
+    FROM soda_international_dwm.dwm_shop_wide_d_whole
+    WHERE country_code IN ('MX','CO','CR','PE')
+    AND concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}',60) AND '${end_date}'
+    GROUP BY shop_id
+) AS c
+ON a.shop_id = c.shop_id
+
+JOIN (
+    SELECT
+    bd_area_id
+    FROM dp_det_data.dtf_areas
+) AS d
+ON a.bd_area_id = CONCAT('bdArea|',d.bd_area_id)
+
+LEFT JOIN (
+    SELECT DISTINCT
+    a.country_code
+    ,a.bd
+    ,a.bdm
+    ,b.bdl
+    FROM (
+        SELECT  
+        country_code
+        ,id
+        ,user_id
+        ,username AS bd
+        ,full_name
+        ,CASE WHEN job_role = 1 THEN 'Hunter'
+            WHEN job_role = 2 THEN 'Farmer'
+            WHEN job_role = 3 THEN 'ELC'
+            WHEN job_role = 4 THEN 'hybrid'
+            WHEN job_role = 5 THEN 'recovery'
+            ELSE job_role
+            END AS job_role
+        ,CASE WHEN position = 100 THEN 'BD Jr Specialist'
+            WHEN position = 101 THEN 'BD Specialist'
+            WHEN position = 102 THEN 'BD Sr. Specialist'
+            WHEN position = 103 THEN 'BD Coordinator'
+            WHEN position = 104 THEN 'KA Specialist KA'
+            WHEN position = 105 THEN 'CKA Specialist CKA'
+            WHEN position = 106 THEN 'BDM'
+            WHEN position = 107 THEN 'CKA BDM'
+            WHEN position = 108 THEN 'KA BDM'
+            WHEN position = 109 THEN 'BD Lead'
+            WHEN position = 110 THEN 'CKA Coordinator'
+            WHEN position = 111 THEN 'Tele-sales Coodinator'
+            WHEN position = 200 THEN 'Phone Sales'
+            WHEN position = 201 THEN 'Phone Sales Manager'
+            WHEN position = 300 THEN 'BD Support'
+            WHEN position = 301 THEN 'BD Support Coordinator'
+            WHEN position = 400 THEN 'CS Supervisor'
+            WHEN position = 401 THEN 'CS Analyst'
+            WHEN position = 402 THEN 'CS Coodinator'
+            ELSE position
+            END AS position
+        ,CASE WHEN user_status = 1 THEN 'In Draft'
+            WHEN user_status = 2 THEN 'Entring'
+            WHEN user_status = 3 THEN 'On-the-job'
+            WHEN user_status = 4 THEN 'Onboarding Failure'
+            WHEN user_status = 5 THEN 'On-the-job but have applied for separation'
+            WHEN user_status = 6 THEN 'Leave'
+            WHEN user_status = 7 THEN 'On-the-job but transfer in progress'
+            ELSE user_status
+            END AS user_status
+            --,city.city_name service_city_name
+        ,IF(
+            coordinator = ''
+            ,superior
+            ,coordinator
+        ) AS bdm
+        FROM soda_international_dwd.dwd_shop_bd_user_info_d_whole bd
+        WHERE concat_ws('-', year, month, day) = '${end_date}'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND user_status NOT IN (1,4,6)
+        --AND username = 'jimenez.ei.at_v'
+    ) AS a
+
+    LEFT JOIN (
+        SELECT
+        country_code
+        ,username AS bdm
+        ,IF(
+            coordinator = ''
+            ,superior
+            ,coordinator
+        ) AS bdl
+        FROM soda_international_dwd.dwd_shop_bd_user_info_d_whole
+        WHERE concat_ws('-', year, month, day) = '${end_date}'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND user_status NOT IN (1,4,6)
+    ) AS b
+    ON a.country_code = b.country_code
+    AND a.bdm = b.bdm
+) AS h
+ON a.country = h.country_code
+AND a.bd_area_owner = h.bd
+
+LEFT JOIN (
+    SELECT 
+    shop_id
+    ,TO_DATE(last_online_date) AS last_online_date
+    ,DATEDIFF('${end_date}',TO_DATE(last_online_date)) AS days_wo_connection
+    FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND last_online_date IS NOT NULL
+    AND last_online_date <> ''
+) AS i
+ON a.shop_id = i.shop_id
+
+WHERE IF(b.suspended_start_date IS NOT NULL,'Suspended','Not Suspended') = 'Not Suspended'
+AND c.average_daily_gmv_l60d > 2
+AND i.days_wo_connection < 7
+
