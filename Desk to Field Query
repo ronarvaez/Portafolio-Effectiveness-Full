@@ -157,6 +157,23 @@ JOIN (
 ON a.bd_area_id = CONCAT('bdArea|',d.bd_area_id)
 
 LEFT JOIN (
+    SELECT
+    shop_id
+    ,COUNT(DISTINCT CASE WHEN set_duration > 0  AND set_duration_noon > 0 THEN concat_ws('-', year, month, day) END) AS days_connected_noon
+    --,concat_ws('-', year, month, day) AS dt
+    --,set_duration
+    --,set_duration_noon
+    --,set_duration_night
+    FROM soda_international_dwm.dwm_shop_wide_d_whole
+    WHERE concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}',7) AND '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    GROUP BY shop_id
+    --ORDER BY shop_id, concat_ws('-', year, month, day)
+    --LIMIT 1500
+) AS e
+ON a.shop_id = e.shop_id
+
+LEFT JOIN (
     SELECT DISTINCT
     a.country_code
     ,a.bd
