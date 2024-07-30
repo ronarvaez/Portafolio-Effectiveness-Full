@@ -5,8 +5,6 @@ a.updated_at_date
 ,a.business_area_id
 ,a.business_area_name
 ,a.bd_area_id
-,a.business_area_name
-,a.bd_area_id
 ,a.bd_area_name
 ,a.shop_id
 ,a.shop_name
@@ -26,6 +24,10 @@ a.updated_at_date
 ,IF(b.suspended_start_date IS NOT NULL,'Suspended','Not Suspended') AS suspension_status
 ,c.average_daily_orders_l60d
 ,i.days_wo_connection
+,e.days_connected_condition
+,e.days_
+,ROUND(e.days_connected_condition/e.days_,4) AS perc_conn_condition
+,j.august_priority
 FROM (
     SELECT
     concat_ws('-', year, month, day) AS updated_at_date
@@ -82,7 +84,7 @@ FROM (
         ) 
     ) = 'SME'
     --Filtro de Prioridades
-    AND INT(SUBSTR(priority,-1)) IN (4)
+    --AND INT(SUBSTR(priority,-1)) IN (4)
 ) AS a
 
 LEFT JOIN (
@@ -152,20 +154,30 @@ ON a.shop_id = c.shop_id
 JOIN (
     SELECT
     bd_area_id
-    FROM dp_det_data.dtf_areas
+    FROM dp_det_data.dtf_areas_3
 ) AS d
 ON a.bd_area_id = CONCAT('bdArea|',d.bd_area_id)
 
 LEFT JOIN (
     SELECT
     shop_id
-    ,COUNT(DISTINCT CASE WHEN set_duration > 0  AND set_duration_noon > 0 THEN concat_ws('-', year, month, day) END) AS days_connected_noon
+    ,COUNT(DISTINCT 
+        CASE WHEN set_duration > 21600  
+        AND (
+                set_duration_noon > 0 
+                OR (set_duration - set_duration_noon - set_duration_night) > 0
+            )
+        AND DAYOFWEEK(concat_ws('-', year, month, day)) BETWEEN 2 AND 6
+        THEN concat_ws('-', year, month, day) END
+    ) AS days_connected_condition
+    ,COUNT(DISTINCT CASE WHEN set_duration > 0 THEN concat_ws('-', year, month, day) END) AS days_
     --,concat_ws('-', year, month, day) AS dt
     --,set_duration
     --,set_duration_noon
     --,set_duration_night
+    --,DAYOFWEEK(concat_ws('-', year, month, day))
     FROM soda_international_dwm.dwm_shop_wide_d_whole
-    WHERE concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}',7) AND '${end_date}'
+    WHERE concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}',60) AND '${end_date}'
     AND country_code IN ('MX','CO','CR','PE')
     GROUP BY shop_id
     --ORDER BY shop_id, concat_ws('-', year, month, day)
@@ -269,7 +281,17 @@ LEFT JOIN (
 ) AS i
 ON a.shop_id = i.shop_id
 
-WHERE IF(b.suspended_start_date IS NOT NULL,'Suspended','Not Suspended') = 'Not Suspended'
-AND c.average_daily_gmv_l60d > 2
-AND i.days_wo_connection < 7
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,july_priority AS august_priority
+    ,version AS version_
+    FROM dp_det_data.prioridades_agosto_2
+) AS j
+ON a.shop_id = j.shop_id
 
+WHERE IF(b.suspended_start_date IS NOT NULL,'Suspended','Not Suspended') = 'Not Suspended'
+--AND c.average_daily_orders_l60d > 2
+AND i.days_wo_connection < 7
+AND INT(SUBSTR(j.august_priority,-1)) IN (4)
+AND ROUND(e.days_connected_condition/e.days_,4) >= 0.6
