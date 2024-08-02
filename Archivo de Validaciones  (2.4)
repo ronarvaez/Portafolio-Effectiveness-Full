@@ -19,7 +19,7 @@ FROM (
     SELECT 
     --country
     ,shop_id
-    ,'Priority 6' AS priority_offline
+    ,'Priority 6' AS prioridades_sme_agosto
     FROM dp_det_data.p6_list_sme_july
 ) AS a
 LEFT JOIN (
