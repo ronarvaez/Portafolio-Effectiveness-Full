@@ -154,14 +154,14 @@ JOIN (
     SELECT DISTINCT
     rep_sales AS username
     ,'BD' AS position
-    FROM dp_det_data.bd_org_sme_agosto24
+    FROM dp_det_data.bd_org_sme_agosto24_v3
 
     UNION ALL
 
     SELECT DISTINCT
     bdm AS username
     ,'BDM' AS position
-    FROM dp_det_data.bd_org_sme_agosto24
+    FROM dp_det_data.bd_org_sme_agosto24_v3
 ) AS c
 ON a.shop_assigned_bd = c.username
 
