@@ -25,6 +25,6 @@ JOIN(
     country
     ,bdm AS username
     ,'BDM' AS position
-    FROM dp_det_data.bd_org_sme_julio_v2
+    FROM dp_det_data.bd_org_sme_agosto24
 ) AS b ON a.country = b.country 
 AND a.bd_area_owner_online = b.username
