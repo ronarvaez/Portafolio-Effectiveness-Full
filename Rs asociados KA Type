@@ -1,0 +1,522 @@
+SELECT DISTINCT
+a.shop_id
+,a.shop_associated_by
+,IF(b.suspended_start_date IS NOT NULL,'Permanent Suspended by CS',NULL) AS suspension_status
+,f.signatory_id
+,d.last_online_date
+,d.is_online_shop
+,COALESCE(e.average_daily_orders_l60d,0) AS average_daily_orders_l60d
+,f.updated_at_date
+,f.country_code
+,f.city_id
+,f.city_name
+,f.ba_area_id
+,f.ba_area_name
+,f.bd_area_id
+,f.bd_area_name
+,f.brand_id
+,f.brand_name
+,f.contract_id
+,f.ka_type
+,f.priority
+,f.bd
+,j.bdm
+,f.shop_name
+,f.is_didi_sign
+,g.legal_rep
+FROM (
+    SELECT DISTINCT
+    a.shop_id
+    ,IF(
+        b.shop_id IS NOT NULL, 'Original Shop ID'
+        ,IF(
+            c.shop_id IS NOT NULL,'Legal Rep'
+            ,IF(
+                d.shop_id IS NOT NULL, 'Signatory ID'
+                ,IF(
+                    e.shop_id IS NOT NULL, 'Brand ID'
+                    ,NULL
+                )
+            )
+        )
+    ) AS shop_associated_by
+    FROM(
+        --Shops por rep. legal
+        SELECT
+        a.shop_id
+        --,a.shop_name
+        FROM (
+            SELECT DISTINCT
+            contract_id
+            ,shop_id
+            --,shop_name
+            FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+            WHERE concat_ws('-', year, month, day) = '${end_date}'
+            AND country_code IN ('MX','CO','CR','PE')
+            AND CASE WHEN is_dark_kitchen = 1 THEN 'DK'
+            WHEN business_type = 3 THEN 'Groceries'
+            WHEN ka_type = 'normal' THEN 'SME'
+            ELSE UPPER(ka_type) 
+            END IN ('CKA','SME')
+            --AND shop_id IS NULL
+        ) AS a
+        LEFT JOIN (
+            SELECT 
+            contract_id
+            ,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(legal_name)),'\\s+', ' '),'[^\\p{L} ]','')) AS legal_rep
+            FROM soda_international_dwd.dwd_contract_d_whole
+            WHERE concat_ws('-', year, month, day) = '${end_date}'
+            AND country_code IN ('MX','CO','CR','PE')
+        ) AS b
+        ON a.contract_id = b.contract_id
+        JOIN (
+            SELECT DISTINCT
+            b.legal_rep
+            FROM (
+                SELECT DISTINCT
+                contract_id
+                ,shop_id
+                FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+                WHERE concat_ws('-', year, month, day) = '${end_date}'
+                AND country_code IN ('MX','CO','CR','PE')
+                AND is_didi_sign = 1
+                AND contract_id <> 0
+                AND contract_id <> '0'
+                AND contract_id <> ''
+                AND CASE WHEN is_dark_kitchen = 1 THEN 'DK'
+                    WHEN business_type = 3 THEN 'Groceries'
+                    WHEN ka_type = 'normal' THEN 'SME'
+                    ELSE UPPER(ka_type) 
+                    END IN ('CKA','SME')
+            ) AS a
+
+            LEFT JOIN (
+                SELECT 
+                contract_id
+                ,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(legal_name)),'\\s+', ' '),'[^\\p{L} ]','')) AS legal_rep
+                FROM soda_international_dwd.dwd_contract_d_whole
+                WHERE concat_ws('-', year, month, day) = '${end_date}'
+                AND country_code IN ('MX','CO','CR','PE')
+            ) AS b
+            ON a.contract_id = b.contract_id
+
+            JOIN (
+                SELECT
+                shop_id
+                FROM dp_det_data.primeburger_co
+            ) AS c
+            ON a.shop_id = c.shop_id
+        ) AS c
+        ON b.legal_rep = c.legal_rep
+
+        --WHERE a.shop_id IS NULL
+
+        UNION ALL
+        --Shops por signatario
+        SELECT
+        a.shop_id
+        FROM (
+            SELECT DISTINCT
+            contractor_id AS signatory_id
+            ,shop_id
+            FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+            WHERE concat_ws('-', year, month, day) = '${end_date}'
+            AND country_code IN ('MX','CO','CR','PE')
+        ) AS a
+        JOIN (
+            SELECT DISTINCT
+            signatory_id
+            FROM (
+                SELECT DISTINCT
+                contractor_id AS signatory_id
+                ,shop_id
+                FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+                WHERE concat_ws('-', year, month, day) = '${end_date}'
+                AND country_code IN ('MX','CO','CR','PE')
+                AND is_didi_sign = 1
+                AND contractor_id <> 0
+                AND contractor_id <> '0'
+                AND contractor_id <> ''
+            ) AS a
+
+            JOIN (
+                SELECT
+                shop_id
+                FROM dp_det_data.primeburger_co
+            ) AS b
+            ON a.shop_id = b.shop_id
+        ) AS b
+        ON a.signatory_id = b.signatory_id
+
+        UNION ALL
+        --Shops por marca
+        SELECT
+        a.shop_id
+        FROM (
+            SELECT DISTINCT
+            brand_id
+            ,shop_id
+            FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+            WHERE concat_ws('-', year, month, day) = '${end_date}'
+            AND country_code IN ('MX','CO','CR','PE')
+        ) AS a
+        JOIN (
+            SELECT DISTINCT
+            brand_id
+            FROM (
+                SELECT DISTINCT
+                brand_id
+                ,shop_id
+                FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+                WHERE concat_ws('-', year, month, day) = '${end_date}'
+                AND country_code IN ('MX','CO','CR','PE')
+                AND is_didi_sign = 1
+                AND brand_id <> 0
+                AND brand_id <> '0'
+                --AND brand_id <> ''
+            ) AS a
+
+            JOIN (
+                SELECT
+                shop_id
+                FROM dp_det_data.primeburger_co
+            ) AS b
+            ON a.shop_id = b.shop_id
+        ) AS b
+        ON a.brand_id = b.brand_id
+
+        UNION ALL
+        --Shops originales
+        SELECT
+        shop_id
+        FROM dp_det_data.primeburger_co
+        WHERE shop_id IS NOT NULL
+    ) AS a
+
+    LEFT JOIN (
+        SELECT
+        shop_id
+        FROM dp_det_data.primeburger_co
+    ) AS b
+    ON a.shop_id = b.shop_id
+
+    LEFT JOIN (
+        --Shops por rep. legal
+        SELECT
+        a.shop_id
+        FROM (
+            SELECT DISTINCT
+            contract_id
+            ,shop_id
+            FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+            WHERE concat_ws('-', year, month, day) = '${end_date}'
+            AND country_code IN ('MX','CO','CR','PE')
+            AND CASE WHEN is_dark_kitchen = 1 THEN 'DK'
+            WHEN business_type = 3 THEN 'Groceries'
+            WHEN ka_type = 'normal' THEN 'SME'
+            ELSE UPPER(ka_type) 
+            END IN ('CKA','SME')
+        ) AS a
+        LEFT JOIN (
+            SELECT 
+            contract_id
+            ,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(legal_name)),'\\s+', ' '),'[^\\p{L} ]','')) AS legal_rep
+            FROM soda_international_dwd.dwd_contract_d_whole
+            WHERE concat_ws('-', year, month, day) = '${end_date}'
+            AND country_code IN ('MX','CO','CR','PE')
+        ) AS b
+        ON a.contract_id = b.contract_id
+        JOIN (
+            SELECT DISTINCT
+            b.legal_rep
+            FROM (
+                SELECT DISTINCT
+                contract_id
+                ,shop_id
+                FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+                WHERE concat_ws('-', year, month, day) = '${end_date}'
+                AND country_code IN ('MX','CO','CR','PE')
+                AND contract_id <> 0
+                AND contract_id <> '0'
+                AND contract_id <> ''
+                AND CASE WHEN is_dark_kitchen = 1 THEN 'DK'
+                    WHEN business_type = 3 THEN 'Groceries'
+                    WHEN ka_type = 'normal' THEN 'SME'
+                    ELSE UPPER(ka_type) 
+                    END IN ('CKA','SME')
+            ) AS a
+
+            LEFT JOIN (
+                SELECT 
+                contract_id
+                ,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(legal_name)),'\\s+', ' '),'[^\\p{L} ]','')) AS legal_rep
+                FROM soda_international_dwd.dwd_contract_d_whole
+                WHERE concat_ws('-', year, month, day) = '${end_date}'
+                AND country_code IN ('MX','CO','CR','PE')
+                --AND contract_id = 5764607523395797929
+            ) AS b
+            ON a.contract_id = b.contract_id
+
+            JOIN (
+                SELECT
+                shop_id
+                FROM dp_det_data.primeburger_co
+            ) AS c
+            ON a.shop_id = c.shop_id
+        ) AS c
+        ON b.legal_rep = c.legal_rep
+    ) AS c
+    ON a.shop_id = c.shop_id
+
+    LEFT JOIN (
+        --Shops por signatario
+        SELECT
+        a.shop_id
+        FROM (
+            SELECT DISTINCT
+            contractor_id AS signatory_id
+            ,shop_id
+            FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+            WHERE concat_ws('-', year, month, day) = '${end_date}'
+            AND country_code IN ('MX','CO','CR','PE')
+        ) AS a
+        JOIN (
+            SELECT DISTINCT
+            signatory_id
+            FROM (
+                SELECT DISTINCT
+                contractor_id AS signatory_id
+                ,shop_id
+                FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+                WHERE concat_ws('-', year, month, day) = '${end_date}'
+                AND country_code IN ('MX','CO','CR','PE')
+                AND contractor_id <> 0
+                AND contractor_id <> '0'
+                AND contractor_id <> ''
+            ) AS a
+
+            JOIN (
+                SELECT
+                shop_id
+                FROM dp_det_data.primeburger_co
+            ) AS b
+            ON a.shop_id = b.shop_id
+        ) AS b
+        ON a.signatory_id = b.signatory_id
+    ) AS d
+    ON a.shop_id = d.shop_id
+
+    LEFT JOIN (
+        --Shops por marca
+        SELECT
+        a.shop_id
+        FROM (
+            SELECT DISTINCT
+            brand_id
+            ,shop_id
+            FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+            WHERE concat_ws('-', year, month, day) = '${end_date}'
+            AND country_code IN ('MX','CO','CR','PE')
+        ) AS a
+        JOIN (
+            SELECT DISTINCT
+            brand_id
+            FROM (
+                SELECT DISTINCT
+                brand_id
+                ,shop_id
+                FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+                WHERE concat_ws('-', year, month, day) = '${end_date}'
+                AND country_code IN ('MX','CO','CR','PE')
+                AND brand_id <> 0
+                AND brand_id <> '0'
+                --AND brand_id <> ''
+            ) AS a
+
+            JOIN (
+                SELECT
+                shop_id
+                FROM dp_det_data.primeburger_co
+            ) AS b
+            ON a.shop_id = b.shop_id
+        ) AS b
+        ON a.brand_id = b.brand_id
+    ) AS e
+    ON a.shop_id = e.shop_id
+) AS a
+
+LEFT JOIN (
+    SELECT DISTINCT
+    a.dt
+    ,a.country_code
+    ,a.shop_id
+    ,a.shop_name
+    ,a.is_suspend
+    ,b.last_online_date
+    ,c.suspended_start_date
+    FROM (
+        SELECT
+        concat_ws('-', year, month, day) AS dt
+        ,country_code
+        ,is_suspend
+        ,shop_id
+        ,shop_name
+        FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+        WHERE concat_ws('-', year, month, day) = '${end_date}'
+        AND country_code IN ('MX','CO','CR','PE')
+        --AND shop_id IN (5764607669625947123,5764607710042260538,5764607695513190469)
+    ) AS a
+
+    LEFT JOIN (
+        SELECT 
+        concat_ws('-', year, month, day) AS dt
+        ,shop_id
+        ,TO_DATE(last_online_date) AS last_online_date
+        FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+        WHERE concat_ws('-', year, month, day) = '${end_date}'
+        AND country_code IN ('MX','CO','CR','PE')
+        AND last_online_date IS NOT NULL
+        AND last_online_date <> ''
+    ) AS b
+    ON a.shop_id = b.shop_id
+
+    JOIN (
+        SELECT  
+        country_code
+        ,entity_id as shop_id
+        ,MAX(TO_DATE(create_ts_local)) AS suspended_start_date
+        FROM soda_international_dwd.dwd_soda_b_operation_operation_d_increment
+        WHERE operation_type = '30000'
+        AND create_ts_local IS NOT NULL
+        AND create_ts_local <> ''
+        --AND entity_id = 5764607669625947123
+        GROUP BY country_code, entity_id
+    ) AS c
+    ON a.shop_id = c.shop_id
+    AND a.is_suspend = 1
+    AND b.last_online_date <= c.suspended_start_date
+) AS b
+ON a.shop_id = b.shop_id
+
+LEFT JOIN (
+    SELECT 
+    shop_id
+    ,TO_DATE(last_online_date) AS last_online_date
+    ,IF(DATEDIFF('${end_date}',TO_DATE(last_online_date)) < 14,1,0) AS is_online_shop
+    FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+) AS d
+ON a.shop_id = d.shop_id
+
+LEFT JOIN (
+    SELECT
+    shop_id
+    ,ROUND(SUM(complete_order_num)/COUNT(DISTINCT concat_ws('-', year, month, day)),2) AS average_daily_orders_l60d
+    FROM soda_international_dwm.dwm_shop_wide_d_whole
+    WHERE country_code IN ('MX','CO','CR','PE')
+    AND concat_ws('-', year, month, day) BETWEEN DATE_SUB('${end_date}',60) AND '${end_date}'
+    GROUP BY shop_id
+) AS e
+ON a.shop_id = e.shop_id
+
+LEFT JOIN (
+    SELECT
+    concat_ws('-', year, month, day) AS updated_at_date
+    ,country_code
+    ,city_id
+    ,city_name
+    ,district_id AS ba_area_id
+    ,district_name AS ba_area_name
+    ,area_id AS bd_area_id
+    ,area_name AS bd_area_name
+    ,brand_id
+    ,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(brand_name)),'\\s+', ' '),'[^\\p{L} ]','')) AS brand_name
+    ,contractor_id AS signatory_id
+    ,contract_id
+    ,CASE WHEN is_dark_kitchen = 1 THEN 'DK'
+        WHEN business_type = 3 THEN 'Groceries'
+        WHEN ka_type = 'normal' THEN 'SME'
+        ELSE UPPER(ka_type) 
+    END AS ka_type
+    ,bd_user_name_extract AS bd
+    ,shop_id
+    ,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(shop_name)),'\\s+', ' '),'[^\\p{L} ]','')) AS shop_name
+    ,is_didi_sign
+    ,priority
+    FROM soda_international_dwm.dwm_bizopp_wide_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+) AS f
+ON a.shop_id = f.shop_id
+
+LEFT JOIN (
+    SELECT 
+    contract_id
+    ,INITCAP(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(LOWER(legal_name)),'\\s+', ' '),'[^\\p{L} ]','')) AS legal_rep
+    FROM soda_international_dwd.dwd_contract_d_whole
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+) AS g
+ON f.contract_id = g.contract_id
+
+LEFT JOIN (
+    SELECT  
+    country_code
+    ,id
+    ,user_id
+    ,username
+    ,full_name
+    ,CASE WHEN job_role = 1 THEN 'Hunter'
+        WHEN job_role = 2 THEN 'Farmer'
+        WHEN job_role = 3 THEN 'ELC'
+        WHEN job_role = 4 THEN 'hybrid'
+        WHEN job_role = 5 THEN 'recovery'
+        ELSE job_role
+        END AS job_role
+    ,CASE WHEN position = 100 THEN 'BD Jr Specialist'
+        WHEN position = 101 THEN 'BD Specialist'
+        WHEN position = 102 THEN 'BD Sr. Specialist'
+        WHEN position = 103 THEN 'BD Coordinator'
+        WHEN position = 104 THEN 'KA Specialist KA'
+        WHEN position = 105 THEN 'CKA Specialist CKA'
+        WHEN position = 106 THEN 'BDM'
+        WHEN position = 107 THEN 'CKA BDM'
+        WHEN position = 108 THEN 'KA BDM'
+        WHEN position = 109 THEN 'BD Lead'
+        WHEN position = 110 THEN 'CKA Coordinator'
+        WHEN position = 111 THEN 'Tele-sales Coodinator'
+        WHEN position = 200 THEN 'Phone Sales'
+        WHEN position = 201 THEN 'Phone Sales Manager'
+        WHEN position = 300 THEN 'BD Support'
+        WHEN position = 301 THEN 'BD Support Coordinator'
+        WHEN position = 400 THEN 'CS Supervisor'
+        WHEN position = 401 THEN 'CS Analyst'
+        WHEN position = 402 THEN 'CS Coodinator'
+        ELSE position
+        END AS position
+    ,CASE WHEN user_status = 1 THEN 'In Draft'
+        WHEN user_status = 2 THEN 'Entring'
+        WHEN user_status = 3 THEN 'On-the-job'
+        WHEN user_status = 4 THEN 'Onboarding Failure'
+        WHEN user_status = 5 THEN 'On-the-job but have applied for separation'
+        WHEN user_status = 6 THEN 'Leave'
+        WHEN user_status = 7 THEN 'On-the-job but transfer in progress'
+        ELSE user_status
+        END AS user_status
+        --,city.city_name service_city_name
+    ,IF(coordinator IS NULL OR coordinator = '',superior,coordinator) AS bdm
+    --,user_id
+    FROM soda_international_dwd.dwd_shop_bd_user_info_d_whole bd
+    WHERE concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX','CO','CR','PE')
+    AND user_status NOT IN (1,4,6)
+    --AND username = 'jimenez.ei.at_v'
+) AS j
+ON f.bd = j.username
+
+WHERE IF(b.suspended_start_date IS NOT NULL,'Permanent Suspended by CS',NULL) IS NULL
+AND f.is_didi_sign = 1
+AND a.shop_id NOT IN (
+    5764607557034051811,5764607693827082466,5764607778489108716,5764607551182997726,5764607666559912182,5764607551707285726,5764607531922753658,5764607613531326552,5764607647048009837,5764607600310880573,5764607694129070900,5764607651368140877,5764607732595032890,5764607765306410847,5764607742531339076,5764607616156960874,5764607628739873082,5764607594501769438,5764607786563143954,5764607633550739162,5764607627443832620,5764607596636669662,5764607590135498552,5764607633819174618,5764607717952718557,5764607548649637833,5764607786072410133,5764607775821530836,5764607590127109849,5764607718502172381,5764607551627593512,5764607589820926044,5764607734738323771,5764607551984109790,5764607715771680813,5764607550126033118,5764607556232939747,5764607572347455681,5764607587165931834,5764607591444121822,5764607591733528793,5764607630136576314,5764607631742994746,5764607668568983919,5764607708679112950,5764607717810112766,5764607721815673081,5764607779269249260,5764607783908149474,5764607787095820562
+)
