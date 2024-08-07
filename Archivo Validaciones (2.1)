@@ -28,7 +28,7 @@ FROM (
 
     SELECT
     shop_id 
-    FROM dp_det_data.prioridades_sme_agosto
+    FROM dp_det_data.prioridades_sme_agosto24
 ) AS a
 
 LEFT JOIN (
@@ -67,7 +67,7 @@ LEFT JOIN (
     SELECT
     shop_id
     ,priority AS priority_offline 
-    FROM dp_det_data.prioridades_sme_agosto
+    FROM dp_det_data.prioridades_sme_agosto24
 ) AS c
 ON a.shop_id = c.shop_id
 
