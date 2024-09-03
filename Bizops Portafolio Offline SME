@@ -550,7 +550,7 @@ LEFT JOIN (
     ,rep_sales AS username
     ,bdm
     ,bdl
-    FROM dp_det_data.bd_org_sme_sept24_v1   --Tabla Offine
+    FROM dp_det_data.bd_org_sme_sept24_v3   --Tabla Offine
 ) AS q
 --BD Org Offline se relaciona con BD Area Owner Offline
 ON a.country = q.country 
