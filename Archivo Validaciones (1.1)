@@ -74,7 +74,7 @@ LEFT JOIN (
     country
     ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
     ,rep_sales AS bd_area_owner_offline
-    FROM dp_det_data.bd_area_owners_agosto24_v3	
+    FROM dp_det_data.bd_area_owners_sept24_v4	
 
 ) AS c
 ON a.country = c.country
