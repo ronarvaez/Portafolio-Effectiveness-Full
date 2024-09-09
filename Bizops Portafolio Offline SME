@@ -132,7 +132,7 @@ JOIN(
     SELECT
     shop_id
     ,priority as prioridad_correcta
-    FROM dp_det_data.prioridades_sme_sept24 --Prioridades Offline
+    FROM dp_det_data.prioridades_sme_sept24_v2 --Prioridades Offline
     --UNION
     --SELECT 
     --shop_id
