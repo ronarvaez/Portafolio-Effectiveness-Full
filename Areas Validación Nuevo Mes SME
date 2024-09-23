@@ -26,32 +26,42 @@ FROM (
 
 JOIN (
     SELECT
-    country_code
-    ,city_name
-    ,area_id
-    ,area_type
-    ,CASE WHEN is_valid = 3 THEN 1 ELSE 0 END AS is_launched_area
-    ,is_valid
-    ,is_del
-    FROM soda_international_dwd.dwd_zone_info_d_whole
-    WHERE concat_ws('-', year, month, day) = '${end_date}'
-    AND country_code IN ('MX','CO','CR','PE')
+    country_code,
+    city_name,
+    area_id,
+    area_type,
+    CASE WHEN is_valid = 3 THEN 1 ELSE 0 END AS is_launched_area,
+    is_valid,
+    is_del
+FROM
+    soda_international_dwd.dwd_zone_info_d_whole
+WHERE
+    concat_ws('-', year, month, day) = '${end_date}'
+    AND country_code IN ('MX', 'CO', 'CR', 'PE')
     AND is_del = 0
-    AND IF(
-            (
-                CASE WHEN is_valid = 3 THEN 1 ELSE 0 END = 1 
-                OR
-                --BD Areas no lanzadas aún pero deben salir 
-                CONCAT('bdArea|',area_id) IN (
-                    	'bdArea|216318345824'
-                )
-            )
-            -- BD Areas lanzadas pero no utilizables
-            AND CONCAT('bdArea|',area_id) NOT IN (
-                'bdArea|4472439022','bdArea|195904667749','bdArea|182302539974','bdArea|240515285246','bdArea|5764607671685418186','bdArea|238128726253','bdArea|118695919712','bdArea|53659041957','bdArea|203357946046','bdArea|265081323607','bdArea|85246345407','bdArea|5764607738949470597','bdArea|5764607628098210175','bdArea|5764607576566991240','bdArea|5764607524704422284','bdArea|5764607627817191807','bdArea|5764607661195463070','bdArea|5764607549736026351','bdArea|5764607616945553649','bdArea|5764607551875122958','bdArea|5764607570485249797','bdArea|5764607657521252106','bdArea|5764607779336423171','bdArea|5764607662726383371','bdArea|5764607780166895363','bdArea|5764607780456302339','bdArea|5764607562314745716','bdArea|174480162870','bdArea|178334728237','bdArea|83203719237','bdArea|109489422514','bdArea|191211241556','bdArea|5764607774051600136','bdArea|5764607738139969291','bdArea|53755511014','bdArea|91235811401','bdArea|86416556508','bdArea|115600523501','bdArea|174736015447','bdArea|240263627006','bdArea|27746631910','bdArea|5764607578525729523','bdArea|5764607571101811258','bdArea|5764607732343440178','bdArea|5764607544874828595','bdArea|5764607732356023090','bdArea|5764607732578321202'
-            )
-            ,0
-        ) = 1
+    AND (
+        (CASE WHEN is_valid = 3 THEN 1 ELSE 0 END = 1)
+        OR
+        -- BD Areas no lanzadas pero deben salir
+        CONCAT('bdArea|', area_id) IN ('bdArea|216318345824')
+    )
+    AND CONCAT('bdArea|', area_id) NOT IN (
+        'bdArea|4472439022','bdArea|195904667749','bdArea|182302539974','bdArea|240515285246',
+        'bdArea|5764607671685418186','bdArea|238128726253','bdArea|118695919712',
+        'bdArea|53659041957','bdArea|203357946046','bdArea|265081323607','bdArea|85246345407',
+        'bdArea|5764607738949470597','bdArea|5764607628098210175','bdArea|5764607576566991240',
+        'bdArea|5764607524704422284','bdArea|5764607627817191807','bdArea|5764607661195463070',
+        'bdArea|5764607549736026351','bdArea|5764607616945553649','bdArea|5764607551875122958',
+        'bdArea|5764607570485249797','bdArea|5764607657521252106','bdArea|5764607779336423171',
+        'bdArea|5764607662726383371','bdArea|5764607780166895363','bdArea|5764607780456302339',
+        'bdArea|5764607562314745716','bdArea|174480162870','bdArea|178334728237','bdArea|83203719237',
+        'bdArea|109489422514','bdArea|191211241556','bdArea|5764607774051600136',
+        'bdArea|5764607738139969291','bdArea|53755511014','bdArea|91235811401','bdArea|86416556508',
+        'bdArea|115600523501','bdArea|174736015447','bdArea|240263627006','bdArea|27746631910',
+        'bdArea|5764607578525729523','bdArea|5764607571101811258','bdArea|5764607732343440178',
+        'bdArea|5764607544874828595','bdArea|5764607732356023090','bdArea|5764607732578321202'
+    )
+
 ) AS r
 ON a.bd_area_id = CONCAT('bdArea|',r.area_id)
 
