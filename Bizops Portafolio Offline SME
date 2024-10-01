@@ -132,7 +132,7 @@ JOIN(
     SELECT
     shop_id
     ,priority as prioridad_correcta
-    FROM dp_det_data.prioridades_sme_sept24_v2 --Prioridades Offline
+    FROM dp_det_data.sme_prioridades_octubre_2024 --Prioridades Offline
     --UNION
     --SELECT 
     --shop_id
@@ -539,7 +539,7 @@ LEFT JOIN (
     country
     ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
     ,rep_sales AS correct_bd_area_owner
-    FROM dp_det_data.bd_area_owners_sept24_v5	  --Tabla Offine
+    FROM dp_det_data.sme_owner_octubre_2024	  --Tabla Offine
 ) AS r
 ON a.country = r.country
 AND a.bd_area_id = r.bd_area_id
@@ -547,10 +547,10 @@ AND a.bd_area_id = r.bd_area_id
 LEFT JOIN (
     SELECT DISTINCT
     country
-    ,rep_sales AS username
+    ,bd AS username
     ,bdm
     ,bdl
-    FROM dp_det_data.bd_org_sme_sept24_v3   --Tabla Offine
+    FROM dp_det_data.sme_farmers_octubre_2024   --Tabla Offine
 ) AS q
 --BD Org Offline se relaciona con BD Area Owner Offline
 ON a.country = q.country 
