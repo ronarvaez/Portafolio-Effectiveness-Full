@@ -22,6 +22,7 @@ a.updated_at_date
 ,e.signed_date
 ,f.rtbo_date
 ,e.first_online_date
+,f.firts_effective_onlide_date
 ,f.last_online_date
 ,a.ka_type
 ,a.is_didi_sign
@@ -394,6 +395,7 @@ LEFT JOIN (
     shop_id
     ,TO_DATE(first_ready_online_date) AS rtbo_date
     ,TO_DATE(last_online_date) AS last_online_date
+    ,TO_DATE(firts_effective_onlide_date) AS firts_effective_onlide_date
     FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
     WHERE concat_ws('-', year, month, day) = '${end_date}'
     AND country_code IN ('MX','CO','CR','PE')
