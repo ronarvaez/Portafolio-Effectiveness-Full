@@ -1,3 +1,4 @@
+-- CODIGO SME TEMP
 SELECT DISTINCT
 a.updated_at_date
 ,a.country
@@ -22,12 +23,13 @@ a.updated_at_date
 ,e.signed_date
 ,f.rtbo_date
 ,e.first_online_date
-,f.firts_effective_onlide_date
+,f.first_effective_online_date
 ,f.last_online_date
 ,a.ka_type
 ,a.is_didi_sign
 ,a.priority
-,IF(w.prioridad_correcta IS NULL, "Priority 5", w.prioridad_correcta) AS prioridad_correcta
+--,IF(w.prioridad_correcta IS NULL, "Priority 5", w.prioridad_correcta) AS prioridad_correcta
+,null AS prioridad_correcta
 ,a.potential
 ,a.r_performance
 ,a.is_suspend
@@ -133,7 +135,7 @@ JOIN(
     SELECT
     shop_id
     ,priority as prioridad_correcta
-    FROM dp_det_data.sme_prioridades_octubre_2024 --Prioridades Offline
+    FROM dp_det_data.sme_prioridades_nov24 --Prioridades Offline
     --UNION
     --SELECT 
     --shop_id
@@ -395,7 +397,7 @@ LEFT JOIN (
     shop_id
     ,TO_DATE(first_ready_online_date) AS rtbo_date
     ,TO_DATE(last_online_date) AS last_online_date
-    ,TO_DATE(firts_effective_onlide_date) AS firts_effective_onlide_date
+    ,TO_DATE(first_effective_online_date) AS first_effective_online_date
     FROM soda_international_dwm.dwm_shop_first_last_time_d_whole
     WHERE concat_ws('-', year, month, day) = '${end_date}'
     AND country_code IN ('MX','CO','CR','PE')
@@ -541,7 +543,7 @@ LEFT JOIN (
     country
     ,CONCAT("bdArea|",SUBSTR(bd_area_id, 2)) as bd_area_id
     ,rep_sales AS correct_bd_area_owner
-    FROM dp_det_data.sme_owner_octubre_2024	  --Tabla Offine
+    FROM dp_det_data.bd_area_owners_nov24	  --Tabla Offine
 ) AS r
 ON a.country = r.country
 AND a.bd_area_id = r.bd_area_id
@@ -549,11 +551,11 @@ AND a.bd_area_id = r.bd_area_id
 LEFT JOIN (
     SELECT DISTINCT
     country
-    ,bd AS username
+    ,bd_username AS username
     ,bdm
     ,bdl
-    FROM dp_det_data.sme_farmers_octubre_2024   --Tabla Offine
+    FROM dp_det_data.ssl_bd_org_st   --Tabla Offine
 ) AS q
 --BD Org Offline se relaciona con BD Area Owner Offline
 ON a.country = q.country 
-AND r.correct_bd_area_owner  = q.username;;
+AND a.bd_area_owner  = q.username;;
