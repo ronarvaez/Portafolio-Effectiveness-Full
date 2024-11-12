@@ -1,4 +1,4 @@
--- CODIGO SME TEMP
+-- CODIGO SME
 SELECT DISTINCT
 a.updated_at_date
 ,a.country
@@ -28,8 +28,7 @@ a.updated_at_date
 ,a.ka_type
 ,a.is_didi_sign
 ,a.priority
---,IF(w.prioridad_correcta IS NULL, "Priority 5", w.prioridad_correcta) AS prioridad_correcta
-,null AS prioridad_correcta
+,IF(w.prioridad_correcta IS NULL, "Priority 5", w.prioridad_correcta) AS prioridad_correcta
 ,a.potential
 ,a.r_performance
 ,a.is_suspend
